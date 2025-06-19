@@ -1,0 +1,26 @@
+# Development Dependencies
+-r requirements.txt
+
+# Testing Framework
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
+pytest-mock>=3.11.0
+
+# Code Quality
+black>=23.7.0
+pylint>=2.17.0
+flake8>=6.0.0
+mypy>=1.5.0
+
+# Security Tools
+bandit>=1.7.5
+safety>=2.3.0
+
+# Documentation
+sphinx>=7.1.0
+sphinx-rtd-theme>=1.3.0
+
+# Development Tools
+pre-commit>=3.3.0
+ipython>=8.14.0 

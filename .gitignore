@@ -1,0 +1,103 @@
+# Privatus-chat .gitignore
+# Security-focused exclusions to prevent accidental commits of sensitive information
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Environment
+venv/
+env/
+ENV/
+.venv/
+.env
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Security-Critical Files
+*.key
+*.pem
+*.p12
+*.pfx
+*.jks
+*.keystore
+private_keys/
+secrets/
+.secrets/
+
+# Database Files
+*.db
+*.sqlite
+*.sqlite3
+database/
+data/
+
+# Logs
+*.log
+logs/
+.logs/
+
+# Configuration with Secrets
+.env.local
+.env.production
+config/secrets.env
+local_settings.py
+
+# Temporary Files
+tmp/
+temp/
+.tmp/
+.temp/
+
+# Testing
+.coverage
+.pytest_cache/
+.tox/
+htmlcov/
+.nox/
+
+# Documentation
+docs/_build/
+site/
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Backup files
+*.bak
+*.backup
+*~ 

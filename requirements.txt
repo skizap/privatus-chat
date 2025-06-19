@@ -1,0 +1,22 @@
+# Privatus-chat Core Dependencies
+# GUI Framework
+PyQt6>=6.5.0
+
+# Cryptography Libraries
+cryptography>=41.0.0
+PyNaCl>=1.5.0
+
+# Networking
+aiohttp>=3.8.0
+aiofiles>=23.1.0
+
+# Database
+sqlcipher3>=0.5.0
+
+# Utilities
+python-dotenv>=1.0.0
+pydantic>=2.0.0
+colorlog>=6.7.0
+
+# Packaging (for final executable creation)
+PyInstaller>=5.13.0 
