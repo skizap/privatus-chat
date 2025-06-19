@@ -27,7 +27,7 @@ A decentralized, end-to-end encrypted chat application that prioritizes **privac
 | `docs/`               | User & developer documentation (Markdown)             |
 | `examples/`           | Demonstration scripts for major subsystems            |
 | `tests/`              | Pytest suites for crypto, networking, anonymity       |
-| `information.txt`     | High-level codebase analysis (generated)              |
+| `config/`             | Environment configuration files                        |
 
 ---
 
@@ -40,7 +40,7 @@ A decentralized, end-to-end encrypted chat application that prioritizes **privac
 5. **Network** (`src.network`) → P2P transport via Kademlia DHT & NAT traversal
 6. **Cross-Cutting** → performance monitors & security auditors
 
-> For an in-depth explanation, see `information.txt` or `docs/developer/architecture.md`.
+> For an in-depth explanation, see [`docs/developer/architecture.md`](https://github.com/skizap/privatus-chat/blob/main/docs/developer/architecture.md).
 
 ---
 
@@ -48,7 +48,7 @@ A decentralized, end-to-end encrypted chat application that prioritizes **privac
 
 ```bash
 # 1. Clone and enter the project
-$ git clone https://github.com/your-org/privatus-chat.git
+$ git clone https://github.com/skizap/privatus-chat.git
 $ cd privatus-chat
 
 # 2. Create & activate a Python 3.11+ virtual environment
@@ -98,14 +98,14 @@ Run any demo with `python examples/<script>.py`.
 
 ## 🔒 Security Notice
 
-Privatus-chat implements state-of-the-art protocols and has undergone automated static and dynamic analysis. Nevertheless, **no software can be considered perfectly secure**. We welcome independent audits and responsible vulnerability disclosures (see `SECURITY.md`).
+Privatus-chat implements state-of-the-art protocols and has undergone automated static and dynamic analysis. Nevertheless, **no software can be considered perfectly secure**. We welcome independent audits and responsible vulnerability disclosures (see [`SECURITY.md`](https://github.com/skizap/privatus-chat/blob/main/SECURITY.md)).
 
 ---
 
 ## 🤝 Contributing
 
-1. Fork → create a feature branch → open a pull request.
-2. Follow the **security-first** development checklist in `CONTRIBUTING.md`.
+1. Fork [https://github.com/skizap/privatus-chat](https://github.com/skizap/privatus-chat) → create a feature branch → open a pull request.
+2. Follow the **security-first** development checklist in [`CONTRIBUTING.md`](https://github.com/skizap/privatus-chat/blob/main/CONTRIBUTING.md).
 3. New features must include tests and updated documentation.
 4. All cryptographic or networking code changes require peer review.
 
@@ -113,13 +113,13 @@ Privatus-chat implements state-of-the-art protocols and has undergone automated 
 
 ## 📄 License
 
-This project is licensed under the **MIT License**. See `LICENSE` for details.
+This project is licensed under the **MIT License**. See [`LICENSE`](https://github.com/skizap/privatus-chat/blob/main/LICENSE) for details.
 
 ---
 
 ## 📞 Contact
 
-For questions, bug reports, or security disclosures, please open an issue or email `security@privatus-chat.example`.
+For questions, bug reports, or security disclosures, please [open an issue](https://github.com/skizap/privatus-chat/issues) on GitHub.
 
 ---
 
