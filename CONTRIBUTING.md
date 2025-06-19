@@ -37,7 +37,7 @@ We pledge to make participation in our project a harassment-free experience for 
 
 ### Enforcement
 
-Instances of abusive, harassing, or otherwise unacceptable behavior may be reported to the project team at conduct@privatus-chat.org. All complaints will be reviewed and investigated promptly and fairly.
+Instances of abusive, harassing, or otherwise unacceptable behavior may be reported by [opening an issue](https://github.com/skizap/privatus-chat/issues) or contacting the project maintainers. All complaints will be reviewed and investigated promptly and fairly.
 
 ## How Can I Contribute?
 
@@ -126,7 +126,7 @@ Documentation is crucial! You can help by:
 ### Setting Up Development Environment
 
 1. **Fork the Repository**
-   - Go to https://github.com/privatus-chat/privatus-chat
+   - Go to https://github.com/skizap/privatus-chat
    - Click "Fork" button
 
 2. **Clone Your Fork**
@@ -137,7 +137,7 @@ Documentation is crucial! You can help by:
 
 3. **Add Upstream Remote**
    ```bash
-   git remote add upstream https://github.com/privatus-chat/privatus-chat.git
+   git remote add upstream https://github.com/skizap/privatus-chat.git
    ```
 
 4. **Create Virtual Environment**
@@ -164,7 +164,7 @@ Documentation is crucial! You can help by:
 
 ### 1. Find or Create an Issue
 
-- Check [existing issues](https://github.com/privatus-chat/privatus-chat/issues)
+- Check [existing issues](https://github.com/skizap/privatus-chat/issues)
 - If none exist, create a new one
 - Comment that you're working on it
 
@@ -401,7 +401,7 @@ Closes #XXX
 
 **DO NOT** create public issues for security vulnerabilities. Instead:
 
-1. Email security@privatus-chat.org
+1. Use GitHub's [private security advisory](https://github.com/skizap/privatus-chat/security/advisories) feature
 2. Include:
    - Description of vulnerability
    - Steps to reproduce
@@ -421,18 +421,16 @@ When contributing:
 
 ### Communication Channels
 
-- **GitHub Issues**: Bug reports, feature requests
-- **GitHub Discussions**: General questions, ideas
-- **IRC**: #privatus-chat on Libera.Chat
-- **Matrix**: #privatus-chat:matrix.org
-- **Email**: dev@privatus-chat.org
+- **GitHub Issues**: [Bug reports, feature requests](https://github.com/skizap/privatus-chat/issues)
+- **GitHub Discussions**: [General questions, ideas](https://github.com/skizap/privatus-chat/discussions)
+- **Pull Requests**: [Code contributions](https://github.com/skizap/privatus-chat/pulls)
 
 ### Getting Help
 
-- Read the [documentation](docs/)
-- Search existing issues
-- Ask in discussions
-- Join our chat channels
+- Read the [documentation](https://github.com/skizap/privatus-chat/tree/main/docs)
+- Search [existing issues](https://github.com/skizap/privatus-chat/issues)
+- Ask in [GitHub discussions](https://github.com/skizap/privatus-chat/discussions)
+- Check the [README](https://github.com/skizap/privatus-chat/blob/main/README.md)
 
 ### Recognition
 
