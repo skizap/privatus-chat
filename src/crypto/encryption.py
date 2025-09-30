@@ -16,16 +16,17 @@ from cryptography.hazmat.primitives.ciphers.aead import AESGCM
 from cryptography.exceptions import InvalidTag
 
 from .secure_random import SecureRandom
+from ..error_handling import (
+    CryptoError, EncryptionFailedError, DecryptionFailedError,
+    ErrorSeverity, EncryptionError
+)
 
 
-class EncryptionError(Exception):
-    """Base exception for encryption operations."""
-    pass
+class DecryptionError(CryptoError):
+    """Base class for decryption-related errors."""
 
-
-class DecryptionError(Exception):
-    """Base exception for decryption operations."""
-    pass
+    def __init__(self, message: str = "Decryption error", **kwargs):
+        super().__init__(message, **kwargs)
 
 
 class MessageEncryption:
@@ -58,25 +59,32 @@ class MessageEncryption:
             Tuple[bytes, bytes]: (nonce, ciphertext) where ciphertext includes auth tag
             
         Raises:
-            EncryptionError: If encryption fails
+            EncryptionFailedError: If encryption fails
         """
         if len(key) != 32:
-            raise EncryptionError("Key must be 32 bytes (256 bits)")
-        
+            raise EncryptionFailedError(
+                "Key must be 32 bytes (256 bits)",
+                severity=ErrorSeverity.HIGH
+            )
+
         try:
             # Generate random nonce (12 bytes for GCM)
             nonce = SecureRandom.generate_nonce(12)
-            
+
             # Create AESGCM cipher
             aesgcm = AESGCM(key)
-            
+
             # Encrypt with authentication
             ciphertext = aesgcm.encrypt(nonce, plaintext, associated_data)
-            
+
             return nonce, ciphertext
-            
+
         except Exception as e:
-            raise EncryptionError(f"Encryption failed: {e}") from e
+            raise EncryptionFailedError(
+                f"Encryption failed: {e}",
+                severity=ErrorSeverity.HIGH,
+                cause=e
+            ) from e
     
     @staticmethod
     def decrypt(nonce: bytes, ciphertext: bytes, key: bytes,
@@ -94,27 +102,40 @@ class MessageEncryption:
             bytes: Decrypted plaintext
             
         Raises:
-            DecryptionError: If decryption or authentication fails
+            DecryptionFailedError: If decryption or authentication fails
         """
         if len(key) != 32:
-            raise DecryptionError("Key must be 32 bytes (256 bits)")
-        
+            raise DecryptionFailedError(
+                "Key must be 32 bytes (256 bits)",
+                severity=ErrorSeverity.HIGH
+            )
+
         if len(nonce) != 12:
-            raise DecryptionError("Nonce must be 12 bytes for GCM")
-        
+            raise DecryptionFailedError(
+                "Nonce must be 12 bytes for GCM",
+                severity=ErrorSeverity.HIGH
+            )
+
         try:
             # Create AESGCM cipher
             aesgcm = AESGCM(key)
-            
+
             # Decrypt and verify authentication
             plaintext = aesgcm.decrypt(nonce, ciphertext, associated_data)
-            
+
             return plaintext
-            
+
         except InvalidTag:
-            raise DecryptionError("Authentication failed - message may be tampered")
+            raise DecryptionFailedError(
+                "Authentication failed - message may be tampered",
+                severity=ErrorSeverity.HIGH
+            )
         except Exception as e:
-            raise DecryptionError(f"Decryption failed: {e}") from e
+            raise DecryptionFailedError(
+                f"Decryption failed: {e}",
+                severity=ErrorSeverity.HIGH,
+                cause=e
+            ) from e
     
     @staticmethod
     def encrypt_with_header(plaintext: bytes, key: bytes,
@@ -148,7 +169,10 @@ class MessageEncryption:
             bytes: Decrypted plaintext
         """
         if len(encrypted_data) < 12:
-            raise DecryptionError("Encrypted data too short to contain nonce")
+            raise DecryptionFailedError(
+                "Encrypted data too short to contain nonce",
+                severity=ErrorSeverity.HIGH
+            )
         
         nonce = encrypted_data[:12]
         ciphertext = encrypted_data[12:]

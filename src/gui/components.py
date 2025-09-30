@@ -543,41 +543,106 @@ class FileTransferProgressWidget(QWidget):
         """Create individual transfer progress widget."""
         widget = QWidget()
         layout = QVBoxLayout()
-        layout.setContentsMargins(2, 2, 2, 2)
+        layout.setContentsMargins(5, 5, 5, 5)
+        layout.setSpacing(3)
 
-        # File info
+        # File info header with better styling
         direction_icon = "⬆️" if direction == "outgoing" else "⬇️"
         file_label = QLabel(f"{direction_icon} {file_name}")
-        file_label.setFont(QFont("Arial", 8, QFont.Weight.Bold))
-        layout.addWidget(file_label)
+        file_label.setFont(QFont("Arial", 9, QFont.Weight.Bold))
 
-        # Progress bar
+        # Add file size info
+        size_mb = file_size / (1024 * 1024)
+        size_label = QLabel(f"{size_mb:.1f} MB")
+        size_label.setStyleSheet("font-size: 8px; color: gray;")
+
+        header_layout = QHBoxLayout()
+        header_layout.addWidget(file_label)
+        header_layout.addStretch()
+        header_layout.addWidget(size_label)
+        layout.addLayout(header_layout)
+
+        # Progress bar with better styling
         progress_bar = QProgressBar()
         progress_bar.setRange(0, 100)
         progress_bar.setValue(0)
+        progress_bar.setTextVisible(True)
+        progress_bar.setStyleSheet("""
+            QProgressBar {
+                border: 1px solid #ccc;
+                border-radius: 3px;
+                text-align: center;
+                font-size: 9px;
+            }
+            QProgressBar::chunk {
+                background-color: #4caf50;
+                border-radius: 2px;
+            }
+        """)
         layout.addWidget(progress_bar)
 
-        # Status and rate info
+        # Status and rate info with improved layout
         status_label = QLabel("Starting...")
-        status_label.setStyleSheet("font-size: 10px; color: gray;")
+        status_label.setStyleSheet("font-size: 9px; color: #666; padding: 2px;")
 
         rate_label = QLabel("")
-        rate_label.setStyleSheet("font-size: 10px; color: blue;")
+        rate_label.setStyleSheet("font-size: 9px; color: #2196f3; padding: 2px;")
 
         info_layout = QHBoxLayout()
+        info_layout.setContentsMargins(0, 0, 0, 0)
         info_layout.addWidget(status_label)
         info_layout.addStretch()
         info_layout.addWidget(rate_label)
         layout.addLayout(info_layout)
 
+        # Add cancel button for active transfers
+        cancel_button = QPushButton("❌")
+        cancel_button.setMaximumWidth(25)
+        cancel_button.setToolTip("Cancel transfer")
+        cancel_button.setStyleSheet("""
+            QPushButton {
+                background-color: #f44336;
+                color: white;
+                border: none;
+                border-radius: 3px;
+                font-size: 10px;
+                padding: 2px;
+            }
+            QPushButton:hover {
+                background-color: #d32f2f;
+            }
+        """)
+
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+        button_layout.addWidget(cancel_button)
+        layout.addLayout(button_layout)
+
         widget.setLayout(layout)
+        widget.setStyleSheet("""
+            QWidget {
+                background-color: #f9f9f9;
+                border: 1px solid #e0e0e0;
+                border-radius: 5px;
+            }
+        """)
+
+        # Connect cancel button
+        cancel_button.clicked.connect(lambda: self._cancel_transfer(transfer_id))
 
         return {
             'widget': widget,
             'progress_bar': progress_bar,
             'status_label': status_label,
-            'rate_label': rate_label
+            'rate_label': rate_label,
+            'cancel_button': cancel_button
         }
+
+    def _cancel_transfer(self, transfer_id: str):
+        """Cancel a specific transfer."""
+        # Emit signal to parent for cancellation
+        # This would be connected to the main window's cancel method
+        pass
 
 
 class FileTransferControlsWidget(QWidget):
@@ -597,34 +662,106 @@ class FileTransferControlsWidget(QWidget):
     def setup_ui(self):
         """Setup file transfer controls UI."""
         layout = QHBoxLayout()
-        layout.setContentsMargins(5, 2, 5, 2)
+        layout.setContentsMargins(8, 5, 8, 5)
+        layout.setSpacing(5)
 
-        # Accept button
+        # Accept button with improved styling
         self.accept_button = QPushButton("✅ Accept")
         self.accept_button.clicked.connect(self._accept_transfer)
-        self.accept_button.setStyleSheet("QPushButton { background-color: #4CAF50; color: white; padding: 4px 8px; font-size: 10px; }")
+        self.accept_button.setStyleSheet("""
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                padding: 6px 12px;
+                border-radius: 4px;
+                font-size: 11px;
+                font-weight: bold;
+                border: none;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+            QPushButton:disabled {
+                background-color: #cccccc;
+                color: #666666;
+            }
+        """)
         layout.addWidget(self.accept_button)
 
-        # Reject button
+        # Reject button with improved styling
         self.reject_button = QPushButton("❌ Reject")
         self.reject_button.clicked.connect(self._reject_transfer)
-        self.reject_button.setStyleSheet("QPushButton { background-color: #f44336; color: white; padding: 4px 8px; font-size: 10px; }")
+        self.reject_button.setStyleSheet("""
+            QPushButton {
+                background-color: #f44336;
+                color: white;
+                padding: 6px 12px;
+                border-radius: 4px;
+                font-size: 11px;
+                font-weight: bold;
+                border: none;
+            }
+            QPushButton:hover {
+                background-color: #d32f2f;
+            }
+            QPushButton:disabled {
+                background-color: #cccccc;
+                color: #666666;
+            }
+        """)
         layout.addWidget(self.reject_button)
 
-        # Pause/Resume button
+        # Pause/Resume button with improved styling
         self.pause_resume_button = QPushButton("⏸️ Pause")
         self.pause_resume_button.clicked.connect(self._pause_resume_transfer)
-        self.pause_resume_button.setStyleSheet("QPushButton { background-color: #FF9800; color: white; padding: 4px 8px; font-size: 10px; }")
+        self.pause_resume_button.setStyleSheet("""
+            QPushButton {
+                background-color: #FF9800;
+                color: white;
+                padding: 6px 12px;
+                border-radius: 4px;
+                font-size: 11px;
+                font-weight: bold;
+                border: none;
+            }
+            QPushButton:hover {
+                background-color: #F57C00;
+            }
+            QPushButton:disabled {
+                background-color: #cccccc;
+                color: #666666;
+            }
+        """)
         layout.addWidget(self.pause_resume_button)
 
-        # Cancel button
+        # Cancel button with improved styling
         self.cancel_button = QPushButton("🚫 Cancel")
         self.cancel_button.clicked.connect(self._cancel_transfer)
-        self.cancel_button.setStyleSheet("QPushButton { background-color: #9E9E9E; color: white; padding: 4px 8px; font-size: 10px; }")
+        self.cancel_button.setStyleSheet("""
+            QPushButton {
+                background-color: #9E9E9E;
+                color: white;
+                padding: 6px 12px;
+                border-radius: 4px;
+                font-size: 11px;
+                font-weight: bold;
+                border: none;
+            }
+            QPushButton:hover {
+                background-color: #757575;
+            }
+            QPushButton:disabled {
+                background-color: #cccccc;
+                color: #666666;
+            }
+        """)
         layout.addWidget(self.cancel_button)
 
         layout.addStretch()
         self.setLayout(layout)
+
+        # Set initial state
+        self.setVisible(False)  # Hidden until a transfer is active
 
     def set_transfer_id(self, transfer_id: str):
         """Set the current transfer ID for controls."""

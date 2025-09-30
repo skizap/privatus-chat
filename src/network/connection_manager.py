@@ -16,6 +16,12 @@ from enum import Enum
 from collections import defaultdict, deque
 import threading
 
+from ..error_handling import (
+    error_handler, handle_errors, secure_logger,
+    NetworkError, ConnectionTimeoutError, ConnectionRefusedError,
+    ErrorSeverity
+)
+
 @dataclass
 class PeerInfo:
     """Information about a peer"""
@@ -569,7 +575,15 @@ class ConnectionManager:
             return True
 
         except asyncio.TimeoutError:
-            self.logger.warning(f"Connection timeout to {peer_info.address}:{peer_info.port}")
+            error = ConnectionTimeoutError(
+                f"Connection timeout to {peer_info.address}:{peer_info.port}",
+                severity=ErrorSeverity.MEDIUM
+            )
+            error_handler.handle_error(error, {
+                'peer_address': peer_info.address,
+                'peer_port': peer_info.port,
+                'operation': 'connection_attempt'
+            })
 
             # Record timeout failure
             if self.rate_limiter:
@@ -581,7 +595,15 @@ class ConnectionManager:
             return False
 
         except ConnectionRefusedError:
-            self.logger.warning(f"Connection refused by {peer_info.address}:{peer_info.port}")
+            error = ConnectionRefusedError(
+                f"Connection refused by {peer_info.address}:{peer_info.port}",
+                severity=ErrorSeverity.MEDIUM
+            )
+            error_handler.handle_error(error, {
+                'peer_address': peer_info.address,
+                'peer_port': peer_info.port,
+                'operation': 'connection_attempt'
+            })
 
             # Record connection refused failure
             if self.rate_limiter:
@@ -593,7 +615,16 @@ class ConnectionManager:
             return False
 
         except OSError as e:
-            self.logger.warning(f"Network error connecting to {peer_info.address}:{peer_info.port}: {e}")
+            error = NetworkError(
+                f"Network error connecting to {peer_info.address}:{peer_info.port}: {e}",
+                severity=ErrorSeverity.HIGH,
+                cause=e
+            )
+            error_handler.handle_error(error, {
+                'peer_address': peer_info.address,
+                'peer_port': peer_info.port,
+                'operation': 'connection_attempt'
+            })
 
             # Record network error failure
             if self.rate_limiter:
@@ -605,7 +636,16 @@ class ConnectionManager:
             return False
 
         except Exception as e:
-            self.logger.error(f"Unexpected error connecting to {peer_info.address}:{peer_info.port}: {e}")
+            error = NetworkError(
+                f"Unexpected error connecting to {peer_info.address}:{peer_info.port}: {e}",
+                severity=ErrorSeverity.HIGH,
+                cause=e
+            )
+            error_handler.handle_error(error, {
+                'peer_address': peer_info.address,
+                'peer_port': peer_info.port,
+                'operation': 'connection_attempt'
+            })
 
             # Record other failure type
             if self.rate_limiter:

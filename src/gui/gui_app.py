@@ -14,6 +14,10 @@ from PyQt6.QtCore import QThread, QObject, pyqtSignal, QTimer
 from PyQt6.QtGui import QIcon
 
 from .main_window import MainChatWindow
+from ..error_handling import (
+    error_handler, handle_errors, secure_logger,
+    GUIError, FatalError, ErrorSeverity
+)
 
 logger = logging.getLogger(__name__)
 
@@ -59,28 +63,22 @@ class PrivatusChatGUI(QObject):
         self.main_window = None
         self.backend_thread = None
         
+    @handle_errors("gui_initialization", show_user_feedback=True)
     def initialize(self):
         """Initialize the GUI application."""
-        try:
-            # Create main window
-            self.main_window = MainChatWindow()
-            
-            # Setup backend thread
-            self.backend_thread = BackendThread()
-            self.backend_thread.status_updated.connect(self.handle_status_update)
-            self.backend_thread.message_received.connect(self.handle_message_received)
-            
-            # Setup integration with backend systems
-            self.setup_backend_integration()
-            
-            logger.info("GUI application initialized successfully")
-            return True
-            
-        except Exception as e:
-            logger.error(f"Failed to initialize GUI: {e}")
-            QMessageBox.critical(None, "Initialization Error", 
-                               f"Failed to initialize Privatus-chat GUI:\n{e}")
-            return False
+        # Create main window
+        self.main_window = MainChatWindow()
+
+        # Setup backend thread
+        self.backend_thread = BackendThread()
+        self.backend_thread.status_updated.connect(self.handle_status_update)
+        self.backend_thread.message_received.connect(self.handle_message_received)
+
+        # Setup integration with backend systems
+        self.setup_backend_integration()
+
+        secure_logger.info("GUI application initialized successfully")
+        return True
             
     def setup_backend_integration(self):
         """Setup integration with cryptographic and networking backends."""
@@ -150,43 +148,41 @@ class PrivatusChatGUI(QObject):
             self.main_window.close()
 
 
+@handle_errors("gui_application_startup", show_user_feedback=True)
 def run_gui_application(app_data_dir=None, key_manager=None):
     """Run the Privatus-chat GUI application."""
-    
+
     # Create QApplication
     app = QApplication(sys.argv)
     app.setApplicationName("Privatus-chat")
     app.setApplicationVersion("1.0.0")
     app.setOrganizationName("Privatus")
-    
+
     # Set application style
     app.setStyle('Fusion')
-    
-    try:
-        # Create and initialize GUI
-        gui = PrivatusChatGUI(app_data_dir, key_manager)
-        
-        if not gui.initialize():
-            return 1
-            
-        # Show the application
-        gui.show()
-        
-        # Setup clean shutdown
-        def shutdown_handler():
-            gui.shutdown()
-            
-        app.aboutToQuit.connect(shutdown_handler)
-        
-        # Run the application
-        logger.info("Starting GUI event loop")
-        return app.exec()
-        
-    except Exception as e:
-        logger.error(f"GUI application error: {e}")
-        QMessageBox.critical(None, "Application Error", 
-                           f"Privatus-chat encountered an error:\n{e}")
+
+    # Create and initialize GUI
+    gui = PrivatusChatGUI(app_data_dir, key_manager)
+
+    if not gui.initialize():
+        secure_logger.error("GUI initialization failed")
         return 1
+
+    # Show the application
+    gui.show()
+
+    # Setup clean shutdown
+    def shutdown_handler():
+        try:
+            gui.shutdown()
+        except Exception as e:
+            secure_logger.error(f"Error during GUI shutdown: {e}")
+
+    app.aboutToQuit.connect(shutdown_handler)
+
+    # Run the application
+    secure_logger.info("Starting GUI event loop")
+    return app.exec()
 
 
 if __name__ == "__main__":

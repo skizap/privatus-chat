@@ -14,6 +14,7 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QTimer, pyqtSignal
 from PyQt6.QtGui import QFont, QPainter, QPen, QBrush, QColor
 from typing import Dict, List, Any
+from datetime import datetime
 import math
 
 
@@ -57,30 +58,48 @@ class CircuitVisualization(QWidget):
         status = circuit.get("status", "building")
         if status == "established":
             color = QColor("#4caf50")  # Green
+            bg_color = QColor("#e8f5e8")
         elif status == "building":
             color = QColor("#ff9800")  # Orange
+            bg_color = QColor("#fff3e0")
         else:
             color = QColor("#f44336")  # Red
-            
-        painter.setBrush(QBrush(color.lighter(170)))
+            bg_color = QColor("#ffebee")
+
+        # Draw background with better styling
+        painter.setBrush(QBrush(bg_color))
         painter.setPen(QPen(color, 2))
-        painter.drawRect(10, y, self.width() - 20, height)
-        
-        # Draw hops
+        painter.drawRoundedRect(10, y, self.width() - 20, height, 5, 5)
+
+        # Draw hops with improved visualization
         hops = circuit.get("hops", [])
         if hops:
             hop_width = (self.width() - 60) // len(hops)
             for i, hop in enumerate(hops):
                 x = 30 + i * hop_width
-                
-                # Hop node
-                painter.setBrush(QBrush(color))
+
+                # Hop node with better styling
+                node_color = color if status == "established" else color.lighter(130)
+                painter.setBrush(QBrush(node_color))
+                painter.setPen(QPen(color.darker(150), 2))
                 painter.drawEllipse(x, y + height//4, height//2, height//2)
-                
-                # Connection line to next hop
+
+                # Add hop type label
+                hop_type = hop.get("type", "Unknown")
+                painter.setPen(QPen(QColor("#333333")))
+                painter.drawText(x - 10, y + height + 15, f"{hop_type}")
+
+                # Connection line to next hop with animation effect
                 if i < len(hops) - 1:
-                    painter.drawLine(x + height//2, y + height//2, 
+                    line_color = color if status == "established" else color.lighter(140)
+                    painter.setPen(QPen(line_color, 3))
+                    painter.drawLine(x + height//2, y + height//2,
                                    x + hop_width, y + height//2)
+
+                    # Add connection status indicator
+                    if status == "established":
+                        painter.setBrush(QBrush(QColor("#4caf50")))
+                        painter.drawEllipse(x + hop_width - 5, y + height//2 - 3, 6, 6)
 
 
 class TrafficMetrics(QGroupBox):
@@ -526,21 +545,60 @@ class PrivacyDashboard(QWidget):
         
     def _build_circuit(self):
         """Trigger circuit building."""
-        # Simulate circuit building
+        # Create more realistic circuit data
         import random
+        circuit_id = random.randint(1000, 9999)
+
+        # Generate realistic hop data
+        locations = ["Germany", "Netherlands", "Sweden", "Canada", "Switzerland", "France", "Japan", "USA"]
+        hop_types = ["Entry", "Middle", "Exit"]
+
+        hops = []
+        for i, hop_type in enumerate(hop_types):
+            hops.append({
+                "type": hop_type,
+                "location": random.choice(locations),
+                "latency": random.randint(50, 200),
+                "bandwidth": random.randint(10, 100)
+            })
+
         circuit_data = {
-            "id": random.randint(1000, 9999),
+            "id": circuit_id,
             "status": "building",
-            "hops": [
-                {"type": "Entry", "location": "Unknown"},
-                {"type": "Middle", "location": "Unknown"},
-                {"type": "Exit", "location": "Unknown"}
-            ]
+            "hops": hops,
+            "created_at": datetime.now().timestamp()
         }
+
+        # Simulate building process with progress updates
+        self._simulate_circuit_building(circuit_data)
         
-        # Simulate building process
-        QTimer.singleShot(2000, lambda: self._circuit_established(circuit_data))
-        
+    def _simulate_circuit_building(self, circuit_data):
+        """Simulate the circuit building process with progress updates."""
+        # Add to circuits list immediately
+        self.circuit_viz.circuits.append(circuit_data)
+        self.circuit_viz.update()
+
+        # Simulate building progress over time
+        def build_step(step):
+            if step <= 3:  # 3 hops to build
+                # Update hop status
+                if step <= len(circuit_data["hops"]):
+                    circuit_data["hops"][step-1]["status"] = "building"
+
+                # Update circuit status
+                if step == 3:
+                    circuit_data["status"] = "established"
+                    circuit_data["latency"] = 120 + (hash(str(circuit_data["id"])) % 200)
+
+                self.circuit_viz.update()
+                QTimer.singleShot(800, lambda: build_step(step + 1))
+            else:
+                # Building complete
+                self._update_circuit_info()
+
+        # Start building process
+        build_step(1)
+
     def _circuit_established(self, circuit_data):
         """Mark circuit as established."""
         circuit_data["status"] = "established"

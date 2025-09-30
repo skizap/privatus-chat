@@ -360,16 +360,62 @@ class SettingsDialog(QDialog):
         layout.addWidget(self.tab_widget)
         
         # Button box
-        button_box = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | 
-            QDialogButtonBox.StandardButton.Cancel |
-            QDialogButtonBox.StandardButton.Apply
-        )
-        
-        button_box.accepted.connect(self.accept)
-        button_box.rejected.connect(self.reject)
-        button_box.button(QDialogButtonBox.StandardButton.Apply).clicked.connect(self.apply_settings)
-        
+        button_box = QDialogButtonBox()
+
+        # Create buttons with proper styling
+        apply_button = QPushButton("Apply")
+        apply_button.setStyleSheet("""
+            QPushButton {
+                background-color: #2196F3;
+                color: white;
+                padding: 8px 16px;
+                border-radius: 4px;
+                font-weight: bold;
+                min-width: 80px;
+            }
+            QPushButton:hover {
+                background-color: #1976D2;
+            }
+        """)
+        apply_button.clicked.connect(self.apply_settings)
+
+        cancel_button = QPushButton("Cancel")
+        cancel_button.setStyleSheet("""
+            QPushButton {
+                background-color: #757575;
+                color: white;
+                padding: 8px 16px;
+                border-radius: 4px;
+                font-weight: bold;
+                min-width: 80px;
+            }
+            QPushButton:hover {
+                background-color: #616161;
+            }
+        """)
+        cancel_button.clicked.connect(self.reject)
+
+        ok_button = QPushButton("OK")
+        ok_button.setStyleSheet("""
+            QPushButton {
+                background-color: #4CAF50;
+                color: white;
+                padding: 8px 16px;
+                border-radius: 4px;
+                font-weight: bold;
+                min-width: 80px;
+            }
+            QPushButton:hover {
+                background-color: #45a049;
+            }
+        """)
+        ok_button.clicked.connect(self.accept)
+
+        # Add buttons to dialog button box
+        button_box.addButton(apply_button, QDialogButtonBox.ButtonRole.ApplyRole)
+        button_box.addButton(cancel_button, QDialogButtonBox.ButtonRole.RejectRole)
+        button_box.addButton(ok_button, QDialogButtonBox.ButtonRole.AcceptRole)
+
         layout.addWidget(button_box)
         self.setLayout(layout)
         

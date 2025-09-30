@@ -11,15 +11,20 @@ from typing import List, Optional, Dict
 from datetime import datetime
 
 from .database import SecureDatabase, Contact, Message
+from ..error_handling import (
+    error_handler, handle_errors, secure_logger,
+    StorageError, DatabaseConnectionError, ErrorSeverity
+)
 
 
 class StorageManager:
     """High-level storage manager for Privatus-chat data."""
     
+    @handle_errors("storage_manager_initialization", show_user_feedback=False)
     def __init__(self, data_dir: Path, master_password: str):
         self.data_dir = data_dir
         self.data_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Initialize secure database
         db_path = self.data_dir / "privatus_chat.db"
         self.db = SecureDatabase(db_path, master_password)

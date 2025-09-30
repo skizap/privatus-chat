@@ -13,6 +13,8 @@ import secrets
 import time
 import platform
 import psutil
+import fcntl
+import threading
 from datetime import datetime
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
@@ -61,6 +63,10 @@ class Message:
 class SecureDatabase:
     """Secure encrypted database for Privatus-chat data."""
 
+    # Class-level lock for initialization race condition prevention
+    _init_lock = threading.Lock()
+    _salt_creation_lock = threading.Lock()
+
     def __init__(self, db_path: Path, password: str):
         self.db_path = db_path
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -68,7 +74,7 @@ class SecureDatabase:
         # Generate encryption key from password
         self.fernet = self._create_encryption_key(password)
 
-        # Initialize database
+        # Initialize database with proper locking
         self._init_database()
 
     def _create_encryption_key(self, password: str) -> Fernet:
@@ -136,39 +142,48 @@ class SecureDatabase:
         """Get existing salt or generate a new cryptographically secure salt."""
         salt_path = self.db_path.with_suffix('.salt')
 
-        try:
-            # Try to read existing salt
-            if salt_path.exists():
-                with open(salt_path, 'rb') as f:
-                    salt = f.read(32)  # Read exactly 32 bytes
+        # Use class-level lock to prevent race conditions during salt creation
+        with SecureDatabase._salt_creation_lock:
+            try:
+                # Try to read existing salt
+                if salt_path.exists():
+                    with open(salt_path, 'rb') as f:
+                        fcntl.flock(f.fileno(), fcntl.LOCK_SH)  # Shared lock for reading
+                        salt = f.read(32)  # Read exactly 32 bytes
+                        fcntl.flock(f.fileno(), fcntl.LOCK_UN)  # Release lock
 
-                # Validate existing salt
-                if len(salt) == 32 and self._validate_salt_entropy(salt):
-                    logger.debug("Using existing salt from file")
-                    return salt
+                    # Validate existing salt
+                    if len(salt) == 32 and self._validate_salt_entropy(salt):
+                        logger.debug("Using existing salt from file")
+                        return salt
+                    else:
+                        logger.warning("Existing salt is invalid, generating new salt")
                 else:
-                    logger.warning("Existing salt is invalid, generating new salt")
-            else:
-                logger.debug("No existing salt found, generating new salt")
+                    logger.debug("No existing salt found, generating new salt")
 
-        except (IOError, OSError) as e:
-            logger.warning(f"Could not read existing salt: {e}, generating new salt")
+            except (IOError, OSError) as e:
+                logger.warning(f"Could not read existing salt: {e}, generating new salt")
 
-        # Generate new cryptographically secure salt
-        salt = secrets.token_bytes(32)
+            # Generate new cryptographically secure salt
+            salt = secrets.token_bytes(32)
 
-        try:
-            # Save new salt to file with secure permissions
-            salt_path.parent.mkdir(parents=True, exist_ok=True)
-            with open(salt_path, 'wb') as f:
-                f.write(salt)
-            # Set restrictive file permissions
-            salt_path.chmod(0o600)
-            logger.info("New salt generated and saved securely")
-        except (IOError, OSError) as e:
-            logger.error(f"Failed to save salt file: {e}")
-            # Continue with generated salt even if save failed
-            pass
+            try:
+                # Save new salt to file with secure permissions and exclusive lock
+                salt_path.parent.mkdir(parents=True, exist_ok=True)
+                with open(salt_path, 'wb') as f:
+                    fcntl.flock(f.fileno(), fcntl.LOCK_EX)  # Exclusive lock for writing
+                    f.write(salt)
+                    f.flush()
+                    os.fsync(f.fileno())  # Ensure data is written to disk
+                    fcntl.flock(f.fileno(), fcntl.LOCK_UN)  # Release lock
+
+                # Set restrictive file permissions
+                salt_path.chmod(0o600)
+                logger.info("New salt generated and saved securely")
+            except (IOError, OSError) as e:
+                logger.error(f"Failed to save salt file: {e}")
+                # Continue with generated salt even if save failed
+                pass
 
         return salt
 
@@ -299,46 +314,92 @@ class SecureDatabase:
             return False
 
     def _init_database(self):
-        """Initialize database schema."""
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
+        """Initialize database schema with proper locking to prevent race conditions."""
+        # Use class-level lock to prevent multiple instances from initializing simultaneously
+        with SecureDatabase._init_lock:
+            try:
+                # Check if database already exists and is properly initialized
+                if self.db_path.exists():
+                    try:
+                        # Try to connect and check if tables exist
+                        with sqlite3.connect(self.db_path, timeout=1.0) as conn:
+                            cursor = conn.cursor()
+                            cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='contacts'")
+                            if cursor.fetchone():
+                                logger.debug("Database already initialized")
+                                return
+                    except sqlite3.Error:
+                        # Database exists but is corrupted or inaccessible
+                        logger.warning("Existing database appears corrupted, reinitializing")
+                        # Backup corrupted database
+                        backup_path = self.db_path.with_suffix('.corrupted')
+                        try:
+                            import shutil
+                            shutil.copy2(self.db_path, backup_path)
+                            logger.info(f"Corrupted database backed up to {backup_path}")
+                        except Exception as e:
+                            logger.error(f"Failed to backup corrupted database: {e}")
 
-            # Contacts table
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS contacts (
-                    contact_id TEXT PRIMARY KEY,
-                    display_name TEXT NOT NULL,
-                    public_key TEXT NOT NULL,
-                    is_verified BOOLEAN DEFAULT FALSE,
-                    is_online BOOLEAN DEFAULT FALSE,
-                    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    last_seen TIMESTAMP
-                )
-            ''')
+                # Create new database with proper settings
+                with sqlite3.connect(self.db_path, timeout=30.0) as conn:
+                    # Enable WAL mode for better concurrency
+                    conn.execute("PRAGMA journal_mode=WAL")
+                    conn.execute("PRAGMA synchronous=NORMAL")
+                    conn.execute("PRAGMA foreign_keys=ON")
+                    conn.execute("PRAGMA cache_size=-64000")  # 64MB cache
 
-            # Messages table
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS messages (
-                    message_id TEXT PRIMARY KEY,
-                    contact_id TEXT NOT NULL,
-                    content BLOB NOT NULL,
-                    is_outgoing BOOLEAN NOT NULL,
-                    is_encrypted BOOLEAN DEFAULT TRUE,
-                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (contact_id) REFERENCES contacts (contact_id)
-                )
-            ''')
+                    cursor = conn.cursor()
 
-            # Settings table
-            cursor.execute('''
-                CREATE TABLE IF NOT EXISTS settings (
-                    key TEXT PRIMARY KEY,
-                    value BLOB NOT NULL,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            ''')
+                    # Contacts table
+                    cursor.execute('''
+                        CREATE TABLE IF NOT EXISTS contacts (
+                            contact_id TEXT PRIMARY KEY,
+                            display_name TEXT NOT NULL,
+                            public_key TEXT NOT NULL,
+                            is_verified BOOLEAN DEFAULT FALSE,
+                            is_online BOOLEAN DEFAULT FALSE,
+                            added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            last_seen TIMESTAMP
+                        )
+                    ''')
 
-            conn.commit()
+                    # Messages table
+                    cursor.execute('''
+                        CREATE TABLE IF NOT EXISTS messages (
+                            message_id TEXT PRIMARY KEY,
+                            contact_id TEXT NOT NULL,
+                            content BLOB NOT NULL,
+                            is_outgoing BOOLEAN NOT NULL,
+                            is_encrypted BOOLEAN DEFAULT TRUE,
+                            timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                            FOREIGN KEY (contact_id) REFERENCES contacts (contact_id)
+                        )
+                    ''')
+
+                    # Settings table
+                    cursor.execute('''
+                        CREATE TABLE IF NOT EXISTS settings (
+                            key TEXT PRIMARY KEY,
+                            value BLOB NOT NULL,
+                            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                        )
+                    ''')
+
+                    # Create indexes for better performance
+                    cursor.execute('CREATE INDEX IF NOT EXISTS idx_contacts_display_name ON contacts(display_name)')
+                    cursor.execute('CREATE INDEX IF NOT EXISTS idx_messages_contact_id ON messages(contact_id)')
+                    cursor.execute('CREATE INDEX IF NOT EXISTS idx_messages_timestamp ON messages(timestamp)')
+                    cursor.execute('CREATE INDEX IF NOT EXISTS idx_settings_key ON settings(key)')
+
+                    conn.commit()
+                    logger.info("Database initialized successfully")
+
+            except sqlite3.Error as e:
+                logger.error(f"Database initialization failed: {e}")
+                raise ValueError(f"Failed to initialize database: {str(e)}")
+            except Exception as e:
+                logger.error(f"Unexpected error during database initialization: {e}")
+                raise
 
     def _encrypt_data(self, data: str) -> bytes:
         """Encrypt sensitive data."""
@@ -350,35 +411,58 @@ class SecureDatabase:
 
     # Contact Management
     def add_contact(self, contact: Contact) -> bool:
-        """Add a new contact."""
-        try:
-            with sqlite3.connect(self.db_path, timeout=10.0) as conn:
-                conn.execute("PRAGMA journal_mode=WAL")  # Enable WAL mode for better concurrency
-                conn.execute("PRAGMA synchronous=NORMAL")  # Balance performance and safety
-                conn.execute("PRAGMA cache_size=-64000")  # 64MB cache
+        """Add a new contact with comprehensive error handling and retry logic."""
+        max_retries = 3
+        retry_delay = 0.1
 
-                cursor = conn.cursor()
-                cursor.execute('''
-                    INSERT INTO contacts
-                    (contact_id, display_name, public_key, is_verified, is_online, added_at, last_seen)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                ''', (
-                    contact.contact_id,
-                    contact.display_name,
-                    contact.public_key,
-                    contact.is_verified,
-                    contact.is_online,
-                    contact.added_at.isoformat() if contact.added_at else None,
-                    contact.last_seen.isoformat() if contact.last_seen else None
-                ))
-                conn.commit()
-                return True
-        except sqlite3.IntegrityError:
-            # Contact already exists
-            return False
-        except sqlite3.Error as e:
-            logger.error(f"Database error adding contact: {e}")
-            return False
+        for attempt in range(max_retries):
+            try:
+                with sqlite3.connect(self.db_path, timeout=10.0) as conn:
+                    # Configure connection for reliability
+                    conn.execute("PRAGMA journal_mode=WAL")
+                    conn.execute("PRAGMA synchronous=NORMAL")
+                    conn.execute("PRAGMA foreign_keys=ON")
+                    conn.execute("PRAGMA cache_size=-64000")
+                    conn.execute("PRAGMA busy_timeout=30000")  # 30 second timeout
+
+                    cursor = conn.cursor()
+                    cursor.execute('''
+                        INSERT INTO contacts
+                        (contact_id, display_name, public_key, is_verified, is_online, added_at, last_seen)
+                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                    ''', (
+                        contact.contact_id,
+                        contact.display_name,
+                        contact.public_key,
+                        contact.is_verified,
+                        contact.is_online,
+                        contact.added_at.isoformat() if contact.added_at else None,
+                        contact.last_seen.isoformat() if contact.last_seen else None
+                    ))
+                    conn.commit()
+                    logger.debug(f"Contact {contact.contact_id} added successfully")
+                    return True
+
+            except sqlite3.IntegrityError:
+                # Contact already exists
+                logger.debug(f"Contact {contact.contact_id} already exists")
+                return False
+            except sqlite3.OperationalError as e:
+                if "database is locked" in str(e) and attempt < max_retries - 1:
+                    logger.warning(f"Database locked, retrying contact addition (attempt {attempt + 1}/{max_retries})")
+                    time.sleep(retry_delay * (2 ** attempt))  # Exponential backoff
+                    continue
+                logger.error(f"Operational error adding contact: {e}")
+                return False
+            except sqlite3.Error as e:
+                logger.error(f"Database error adding contact: {e}")
+                return False
+            except Exception as e:
+                logger.error(f"Unexpected error adding contact: {e}")
+                return False
+
+        logger.error(f"Failed to add contact after {max_retries} attempts")
+        return False
 
     def get_contact(self, contact_id: str) -> Optional[Contact]:
         """Get a contact by ID."""
@@ -462,29 +546,55 @@ class SecureDatabase:
 
     # Message Management
     def add_message(self, message: Message) -> bool:
-        """Add a new message."""
-        try:
-            # Encrypt message content
-            encrypted_content = self._encrypt_data(message.content)
+        """Add a new message with comprehensive error handling and retry logic."""
+        max_retries = 3
+        retry_delay = 0.1
 
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                cursor.execute('''
-                    INSERT INTO messages
-                    (message_id, contact_id, content, is_outgoing, is_encrypted, timestamp)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                ''', (
-                    message.message_id,
-                    message.contact_id,
-                    encrypted_content,
-                    message.is_outgoing,
-                    message.is_encrypted,
-                    message.timestamp
-                ))
-                conn.commit()
-                return True
-        except sqlite3.Error:
-            return False
+        for attempt in range(max_retries):
+            try:
+                # Encrypt message content
+                encrypted_content = self._encrypt_data(message.content)
+
+                with sqlite3.connect(self.db_path, timeout=10.0) as conn:
+                    # Configure connection for reliability
+                    conn.execute("PRAGMA journal_mode=WAL")
+                    conn.execute("PRAGMA synchronous=NORMAL")
+                    conn.execute("PRAGMA foreign_keys=ON")
+                    conn.execute("PRAGMA busy_timeout=30000")
+
+                    cursor = conn.cursor()
+                    cursor.execute('''
+                        INSERT INTO messages
+                        (message_id, contact_id, content, is_outgoing, is_encrypted, timestamp)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    ''', (
+                        message.message_id,
+                        message.contact_id,
+                        encrypted_content,
+                        message.is_outgoing,
+                        message.is_encrypted,
+                        message.timestamp.isoformat() if message.timestamp else datetime.now().isoformat()
+                    ))
+                    conn.commit()
+                    logger.debug(f"Message {message.message_id} added successfully")
+                    return True
+
+            except sqlite3.OperationalError as e:
+                if "database is locked" in str(e) and attempt < max_retries - 1:
+                    logger.warning(f"Database locked, retrying message addition (attempt {attempt + 1}/{max_retries})")
+                    time.sleep(retry_delay * (2 ** attempt))  # Exponential backoff
+                    continue
+                logger.error(f"Operational error adding message: {e}")
+                return False
+            except sqlite3.Error as e:
+                logger.error(f"Database error adding message: {e}")
+                return False
+            except Exception as e:
+                logger.error(f"Unexpected error adding message: {e}")
+                return False
+
+        logger.error(f"Failed to add message after {max_retries} attempts")
+        return False
 
     def get_messages(self, contact_id: str, limit: int = 100) -> List[Message]:
         """Get messages for a contact."""
@@ -531,21 +641,46 @@ class SecureDatabase:
 
     # Settings Management
     def set_setting(self, key: str, value: any) -> bool:
-        """Set a configuration setting."""
-        try:
-            # Encrypt the setting value
-            encrypted_value = self._encrypt_data(json.dumps(value))
+        """Set a configuration setting with comprehensive error handling."""
+        max_retries = 3
+        retry_delay = 0.1
 
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                cursor.execute('''
-                    INSERT OR REPLACE INTO settings (key, value, updated_at)
-                    VALUES (?, ?, ?)
-                ''', (key, encrypted_value, datetime.now()))
-                conn.commit()
-                return True
-        except sqlite3.Error:
-            return False
+        for attempt in range(max_retries):
+            try:
+                # Encrypt the setting value
+                encrypted_value = self._encrypt_data(json.dumps(value))
+
+                with sqlite3.connect(self.db_path, timeout=10.0) as conn:
+                    # Configure connection for reliability
+                    conn.execute("PRAGMA journal_mode=WAL")
+                    conn.execute("PRAGMA synchronous=NORMAL")
+                    conn.execute("PRAGMA busy_timeout=30000")
+
+                    cursor = conn.cursor()
+                    cursor.execute('''
+                        INSERT OR REPLACE INTO settings (key, value, updated_at)
+                        VALUES (?, ?, ?)
+                    ''', (key, encrypted_value, datetime.now().isoformat()))
+                    conn.commit()
+                    logger.debug(f"Setting {key} updated successfully")
+                    return True
+
+            except sqlite3.OperationalError as e:
+                if "database is locked" in str(e) and attempt < max_retries - 1:
+                    logger.warning(f"Database locked, retrying setting update (attempt {attempt + 1}/{max_retries})")
+                    time.sleep(retry_delay * (2 ** attempt))
+                    continue
+                logger.error(f"Operational error setting setting: {e}")
+                return False
+            except sqlite3.Error as e:
+                logger.error(f"Database error setting setting: {e}")
+                return False
+            except Exception as e:
+                logger.error(f"Unexpected error setting setting: {e}")
+                return False
+
+        logger.error(f"Failed to set setting after {max_retries} attempts")
+        return False
 
     def get_setting(self, key: str, default_value: any = None) -> any:
         """Get a configuration setting."""

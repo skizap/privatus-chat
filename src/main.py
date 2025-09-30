@@ -22,6 +22,10 @@ from src.network import P2PNode
 from src.anonymity import PrivacyController, AnonymousIdentityManager, OnionRoutingManager, TrafficAnalysisResistance
 from src.anonymity.privacy_controls import PrivacyLevel
 from src.gui import run_gui_application
+from src.error_handling import (
+    error_handler, handle_errors, secure_logger,
+    FatalError, ErrorSeverity
+)
 
 # Configure logging
 logging.basicConfig(
@@ -173,52 +177,44 @@ def display_system_status(core_systems):
     print("="*70)
 
 
+@handle_errors("main_application_startup", show_user_feedback=True)
 def main():
     """Main application entry point."""
-    logger.info("Starting Privatus-chat...")
-    
-    try:
-        # Setup application paths
-        app_data_dir = setup_application_paths()
-        logger.info(f"Application data directory: {app_data_dir}")
-        
-        # Initialize all core systems
-        core_systems = initialize_core_systems(app_data_dir)
-        
-        # Display comprehensive status
-        display_system_status(core_systems)
-        
-        # Check if GUI should be launched
-        if len(sys.argv) > 1:
-            if len(sys.argv) == 2 and sys.argv[1] == "--cli":
-                # CLI mode for testing/debugging
-                logger.info("Running in CLI mode - GUI disabled")
-                print("\n🖥️  CLI Mode: All systems initialized and ready")
-                print("Use --gui or no arguments to launch the graphical interface")
-                return 0
-            else:
-                # Invalid arguments
-                print("Usage: python -m src.main [--cli]")
-                print("  --cli    Run in command-line mode (no GUI)")
-                return 1
+    secure_logger.info("Starting Privatus-chat...")
+
+    # Setup application paths
+    app_data_dir = setup_application_paths()
+    secure_logger.info(f"Application data directory: {app_data_dir}")
+
+    # Initialize all core systems
+    core_systems = initialize_core_systems(app_data_dir)
+
+    # Display comprehensive status
+    display_system_status(core_systems)
+
+    # Check if GUI should be launched
+    if len(sys.argv) > 1:
+        if len(sys.argv) == 2 and sys.argv[1] == "--cli":
+            # CLI mode for testing/debugging
+            secure_logger.info("Running in CLI mode - GUI disabled")
+            print("\n🖥️  CLI Mode: All systems initialized and ready")
+            print("Use --gui or no arguments to launch the graphical interface")
+            return 0
         else:
-            # Launch GUI application
-            logger.info("Launching GUI application...")
-            print("\n🖥️  Launching Privatus-chat GUI...")
-            
-            # Run the GUI with initialized systems
-            return run_gui_application(
-                app_data_dir=app_data_dir, 
-                key_manager=core_systems['key_manager']
-            )
-        
-    except KeyboardInterrupt:
-        logger.info("Application interrupted by user")
-        return 0
-    except Exception as e:
-        logger.error(f"Failed to start Privatus-chat: {e}")
-        print(f"\n❌ Error: {e}")
-        return 1
+            # Invalid arguments
+            print("Usage: python -m src.main [--cli]")
+            print("  --cli    Run in command-line mode (no GUI)")
+            return 1
+    else:
+        # Launch GUI application
+        secure_logger.info("Launching GUI application...")
+        print("\n🖥️  Launching Privatus-chat GUI...")
+
+        # Run the GUI with initialized systems
+        return run_gui_application(
+            app_data_dir=app_data_dir,
+            key_manager=core_systems['key_manager']
+        )
 
 
 if __name__ == "__main__":
