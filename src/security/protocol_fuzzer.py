@@ -11,7 +11,22 @@ import threading
 from typing import Dict, List, Any, Optional, Tuple, Callable
 from dataclasses import dataclass
 from datetime import datetime
+from enum import Enum
 import json
+
+
+class FuzzingStrategy(Enum):
+    """Fuzzing strategies for protocol testing."""
+    BIT_FLIP = "bit_flip"
+    BYTE_FLIP = "byte_flip"
+    ARITHMETIC = "arithmetic"
+    INSERT = "insert"
+    DELETE = "delete"
+    REPLACE = "replace"
+    FORMAT_STRING = "format_string"
+    BUFFER_OVERFLOW = "buffer_overflow"
+    INJECTION = "injection"
+
 
 @dataclass
 class FuzzCase:

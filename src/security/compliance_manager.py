@@ -9,6 +9,16 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 from pathlib import Path
 import re
+from enum import Enum
+
+
+class ComplianceStandard(Enum):
+    """Supported compliance standards."""
+    GDPR = "GDPR"
+    FIPS_140_2 = "FIPS-140-2"
+    PCI_DSS = "PCI-DSS"
+    COMMON_CRITERIA = "Common-Criteria"
+
 
 @dataclass
 class ComplianceRequirement:

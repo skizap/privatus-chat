@@ -1,0 +1,149 @@
+{
+  "environment": "development",
+  "name": "Development Environment",
+  "description": "Development and testing environment with debug features enabled",
+
+  "build": {
+    "optimization_level": "none",
+    "debug_info": true,
+    "strip_binaries": false,
+    "include_tests": true,
+    "create_debug_symbols": true,
+    "enable_profiling": true,
+    "enable_coverage": true
+  },
+
+  "deployment": {
+    "auto_deploy": false,
+    "require_approval": false,
+    "create_backups": false,
+    "rollback_on_failure": false,
+    "notify_on_success": false,
+    "notify_on_failure": true
+  },
+
+  "features": {
+    "file_transfer": true,
+    "voice_calls": true,
+    "performance_monitoring": true,
+    "security_testing": true,
+    "gui_enhancements": true,
+    "crypto_optimizations": true,
+    "debug_features": true,
+    "development_tools": true
+  },
+
+  "logging": {
+    "level": "DEBUG",
+    "format": "detailed",
+    "output": ["console", "file"],
+    "file_path": "logs/privatus-chat-dev.log",
+    "max_size": "100MB",
+    "backup_count": 5,
+    "enable_timestamps": true,
+    "enable_thread_info": true,
+    "enable_stack_traces": true
+  },
+
+  "security": {
+    "relaxed_checks": true,
+    "allow_insecure_connections": true,
+    "disable_certificate_validation": false,
+    "enable_security_audit": true,
+    "require_encryption": false,
+    "allow_self_signed_certificates": true
+  },
+
+  "performance": {
+    "monitoring_enabled": true,
+    "detailed_metrics": true,
+    "memory_profiling": true,
+    "cpu_profiling": true,
+    "network_monitoring": true,
+    "gui_responsiveness_tracking": true,
+    "cache_statistics": true
+  },
+
+  "testing": {
+    "run_all_tests": true,
+    "fail_fast": false,
+    "generate_coverage_report": true,
+    "run_performance_tests": true,
+    "run_security_tests": true,
+    "run_integration_tests": true,
+    "test_timeout": 300,
+    "parallel_execution": true,
+    "workers": 4
+  },
+
+  "development_tools": {
+    "hot_reload": true,
+    "auto_restart": true,
+    "debug_console": true,
+    "inspector": true,
+    "profiler": true,
+    "memory_inspector": true,
+    "network_inspector": true,
+    "crypto_debugger": true
+  },
+
+  "gui": {
+    "theme": "development",
+    "show_debug_info": true,
+    "show_performance_metrics": true,
+    "show_network_status": true,
+    "show_crypto_status": true,
+    "enable_animations": true,
+    "developer_menu": true,
+    "experimental_features": true
+  },
+
+  "network": {
+    "p2p_debug": true,
+    "show_peer_info": true,
+    "log_all_messages": true,
+    "enable_packet_inspection": true,
+    "simulate_network_conditions": true,
+    "test_network_failures": true
+  },
+
+  "crypto": {
+    "debug_mode": true,
+    "log_key_operations": true,
+    "show_key_info": true,
+    "enable_key_inspection": true,
+    "test_crypto_failures": true,
+    "performance_analysis": true
+  },
+
+  "storage": {
+    "debug_mode": true,
+    "log_all_operations": true,
+    "show_storage_info": true,
+    "enable_storage_inspection": true,
+    "test_storage_failures": true,
+    "performance_analysis": true
+  },
+
+  "notifications": {
+    "enable_toasts": true,
+    "show_debug_notifications": true,
+    "log_notifications": true,
+    "test_notification_system": true
+  },
+
+  "error_handling": {
+    "show_detailed_errors": true,
+    "enable_error_reporting": true,
+    "create_error_dumps": true,
+    "show_stack_traces": true,
+    "enable_crash_reporting": false
+  },
+
+  "compatibility": {
+    "check_system_requirements": false,
+    "allow_unsupported_systems": true,
+    "skip_version_checks": true,
+    "ignore_deprecation_warnings": true
+  }
+}

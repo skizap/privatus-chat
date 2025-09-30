@@ -570,5 +570,19 @@ class TranslatorPlugin(PrivatusChatPlugin):
 
 *For more examples and tutorials, see the [Developer Guide](developer-guide.md).*
 
-*Last updated: December 2024*
-*Version: 1.0.0* 
+## Related Documentation
+
+### Feature-Specific Guides
+- **[Voice Communication](../user/feature-voice-communication.md)**: Voice calling system details
+- **[File Transfer](../user/feature-file-transfer.md)**: File sharing implementation
+- **[Performance Monitoring](../user/feature-performance-monitoring.md)**: Monitoring system architecture
+- **[Security Testing](../user/feature-security-testing.md)**: Security framework implementation
+
+### Architecture References
+- **[System Architecture](architecture.md)**: Overall system design
+- **[Security Architecture](../user/security-best-practices.md)**: Security implementation details
+
+---
+
+*Last updated: January 2025*
+*Version: 1.0.0*

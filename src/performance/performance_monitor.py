@@ -524,19 +524,22 @@ class BenchmarkSuite:
 
 
 class PerformanceMonitor:
-    """Main performance monitoring system"""
-    
+    """Main performance monitoring system with system integration"""
+
     def __init__(self, monitoring_interval: float = 1.0):
         self.monitoring_interval = monitoring_interval
-        
+
         # Initialize components
         self.metrics_collector = MetricsCollector()
         self.profiler = PerformanceProfiler()
         self.benchmark_suite = BenchmarkSuite()
-        
+
+        # System integration
+        self.system_components = {}  # Track registered components
+
         # Monitoring tasks
         self.monitor_task: Optional[asyncio.Task] = None
-        
+
         self.running = False
     
     async def start(self):
@@ -576,13 +579,16 @@ class PerformanceMonitor:
             try:
                 # Record system metrics
                 self._record_system_metrics()
-                
+
                 # Record resource usage
                 self.profiler.record_resource_usage()
-                
+
+                # Collect component metrics
+                self.collect_component_metrics()
+
                 # Wait for next interval
                 await asyncio.sleep(self.monitoring_interval)
-                
+
             except asyncio.CancelledError:
                 break
             except Exception as e:
@@ -663,12 +669,59 @@ class PerformanceMonitor:
         except Exception as e:
             logger.error(f"Failed to export metrics: {e}")
     
+    def register_component(self, name: str, component: Any):
+        """Register a system component for monitoring"""
+        self.system_components[name] = component
+        logger.info(f"Registered component '{name}' for monitoring")
+
+    def unregister_component(self, name: str):
+        """Unregister a system component"""
+        if name in self.system_components:
+            del self.system_components[name]
+            logger.info(f"Unregistered component '{name}' from monitoring")
+
+    def collect_component_metrics(self):
+        """Collect metrics from registered components"""
+        for name, component in self.system_components.items():
+            try:
+                # Try to get stats from component
+                if hasattr(component, 'get_connection_stats'):
+                    stats = component.get_connection_stats()
+                    for key, value in stats.items():
+                        self.metrics_collector.set_gauge(f"{name}.{key}", float(value))
+
+                elif hasattr(component, 'get_circuit_statistics'):
+                    stats = component.get_circuit_statistics()
+                    for key, value in stats.items():
+                        if isinstance(value, (int, float)):
+                            self.metrics_collector.set_gauge(f"{name}.{key}", float(value))
+
+                elif hasattr(component, 'get_routing_statistics'):
+                    stats = component.get_routing_statistics()
+                    for key, value in stats.items():
+                        if isinstance(value, (int, float)):
+                            self.metrics_collector.set_gauge(f"{name}.{key}", float(value))
+
+                elif hasattr(component, 'get_session_statistics'):
+                    stats = component.get_session_statistics()
+                    for key, value in stats.items():
+                        if isinstance(value, (int, float)):
+                            self.metrics_collector.set_gauge(f"{name}.{key}", float(value))
+
+            except Exception as e:
+                logger.warning(f"Failed to collect metrics from {name}: {e}")
+
     def get_comprehensive_stats(self) -> Dict[str, Any]:
         """Get comprehensive performance statistics"""
+        # Collect component metrics before returning stats
+        if self.running:
+            self.collect_component_metrics()
+
         return {
             'metrics': self.metrics_collector.get_metrics_summary(),
             'profiler': self.profiler.get_profiling_summary(),
             'resource_stats': self.profiler.get_resource_stats(),
             'benchmarks': self.benchmark_suite.benchmark_results,
+            'components': list(self.system_components.keys()),
             'timestamp': time.time()
-        } 
+        }

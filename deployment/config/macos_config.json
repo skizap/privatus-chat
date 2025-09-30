@@ -1,0 +1,200 @@
+{
+  "platform": "macos",
+  "architecture": "universal",
+  "version": "3.0.0",
+  "build_date": "2024-09-30T00:00:00Z",
+
+  "installer": {
+    "type": "dmg",
+    "output_name": "privatus-chat-3.0.0-macos.dmg",
+    "app_bundle": {
+      "identifier": "com.privatus.chat",
+      "signature": "????",
+      "category": "public.app-category.social-networking",
+      "minimum_system_version": "10.15"
+    },
+    "dmg": {
+      "background_image": "deployment/assets/dmg_background.png",
+      "window_size": "600x400",
+      "icon_size": 128,
+      "text_size": 12,
+      "applications_link": true
+    }
+  },
+
+  "application": {
+    "name": "Privatus-chat",
+    "display_name": "Privatus-chat",
+    "bundle_name": "Privatus-chat",
+    "description": "Secure Anonymous Chat Application",
+    "copyright": "© 2024 Privatus-chat Project",
+    "homepage": "https://github.com/privatus-chat/privatus-chat",
+    "support_url": "https://github.com/privatus-chat/privatus-chat/issues",
+    "privacy_url": "https://github.com/privatus-chat/privatus-chat/blob/main/PRIVACY.md"
+  },
+
+  "installation": {
+    "install_dir": "/Applications/Privatus-chat.app",
+    "data_dir": "~/Library/Application Support/Privatus-chat",
+    "cache_dir": "~/Library/Caches/com.privatus.chat",
+    "logs_dir": "~/Library/Logs/Privatus-chat",
+    "create_directories": true,
+    "drag_drop_install": true
+  },
+
+  "security": {
+    "code_signing": {
+      "enabled": false,
+      "identity": null,
+      "entitlements": {
+        "com.apple.security.app-sandbox": false,
+        "com.apple.security.network.client": true,
+        "com.apple.security.network.server": true,
+        "com.apple.security.device.microphone": true,
+        "com.apple.security.device.camera": true,
+        "com.apple.security.personal-information.addressbook": false,
+        "com.apple.security.personal-information.calendars": false,
+        "com.apple.security.personal-information.photos": false,
+        "com.apple.security.files.user-selected.read-write": true,
+        "com.apple.security.files.downloads.read-write": true,
+        "com.apple.security.network.incoming": true,
+        "com.apple.security.network.outgoing": true
+      }
+    },
+    "notarization": {
+      "enabled": false,
+      "apple_id": null,
+      "team_id": null,
+      "keychain_profile": null
+    },
+    "gatekeeper": {
+      "hardened_runtime": true,
+      "library_validation": false,
+      "runtime_exceptions": [
+        "com.apple.security.cs.allow-jit",
+        "com.apple.security.cs.allow-unsigned-executable-memory",
+        "com.apple.security.cs.disable-library-validation"
+      ]
+    }
+  },
+
+  "privacy": {
+    "permissions": {
+      "microphone": {
+        "description": "Privatus-chat needs microphone access for secure voice calls.",
+        "required": true
+      },
+      "camera": {
+        "description": "Privatus-chat needs camera access for secure video calls.",
+        "required": false
+      },
+      "contacts": {
+        "description": "Privatus-chat can optionally access contacts for easier communication.",
+        "required": false
+      },
+      "local_network": {
+        "description": "Privatus-chat uses local network for peer-to-peer connections.",
+        "required": true
+      },
+      "file_access": {
+        "description": "Privatus-chat needs file access for sharing and receiving files.",
+        "required": true
+      }
+    }
+  },
+
+  "plist": {
+    "CFBundleName": "Privatus-chat",
+    "CFBundleDisplayName": "Privatus-chat",
+    "CFBundleIdentifier": "com.privatus.chat",
+    "CFBundleVersion": "3.0.0",
+    "CFBundleShortVersionString": "3.0.0",
+    "CFBundlePackageType": "APPL",
+    "CFBundleSignature": "????",
+    "CFBundleExecutable": "Privatus-chat",
+    "LSMinimumSystemVersion": "10.15",
+    "NSHighResolutionCapable": true,
+    "LSApplicationCategoryType": "public.app-category.social-networking",
+    "NSHumanReadableCopyright": "© 2024 Privatus-chat Project",
+    "LSEnvironment": {
+      "PYTHONPATH": "../Resources",
+      "PRIVATUS_DATA_DIR": "~/Library/Application Support/Privatus-chat"
+    },
+    "NSAppTransportSecurity": {
+      "NSAllowsArbitraryLoads": true,
+      "NSAllowsLocalNetworking": true
+    },
+    "NSBonjourServices": ["_privatus-chat._tcp", "_privatus-chat._udp"],
+    "CFBundleDocumentTypes": [
+      {
+        "CFBundleTypeName": "Privatus-chat Message",
+        "CFBundleTypeRole": "Editor",
+        "LSItemContentTypes": ["com.privatus.chat.message"]
+      }
+    ],
+    "CFBundleURLTypes": [
+      {
+        "CFBundleURLName": "Privatus-chat URL",
+        "CFBundleURLSchemes": ["privatus-chat"]
+      }
+    ]
+  },
+
+  "features": {
+    "file_transfer": true,
+    "voice_calls": true,
+    "performance_monitoring": true,
+    "security_testing": true,
+    "gui_enhancements": true,
+    "crypto_optimizations": true
+  },
+
+  "dependencies": {
+    "python": "3.11",
+    "frameworks": [
+      "Python",
+      "CoreFoundation",
+      "Security",
+      "SystemConfiguration",
+      "IOKit",
+      "CoreAudio",
+      "AVFoundation",
+      "CoreMedia"
+    ],
+    "libraries": [
+      "libssl.dylib",
+      "libcrypto.dylib",
+      "libffi.dylib",
+      "libsqlite3.dylib"
+    ]
+  },
+
+  "environment": {
+    "PRIVATUS_DATA_DIR": "~/Library/Application Support/Privatus-chat",
+    "PRIVATUS_CONFIG_DIR": "~/Library/Application Support/Privatus-chat",
+    "PYTHONPATH": "/Applications/Privatus-chat.app/Contents/Resources",
+    "DYLD_LIBRARY_PATH": "/Applications/Privatus-chat.app/Contents/Frameworks",
+    "SSL_CERT_FILE": "/Applications/Privatus-chat.app/Contents/Resources/lib/python3.11/site-packages/certifi/cacert.pem"
+  },
+
+  "compatibility": {
+    "macos_versions": ["10.15", "11.0", "12.0", "13.0", "14.0"],
+    "supported_architectures": ["x86_64", "arm64"],
+    "minimum_build": "19H2"
+  },
+
+  "dock": {
+    "show_in_dock": true,
+    "dock_tile_plugin": null,
+    "badge_label": false
+  },
+
+  "spotlight": {
+    "importer": null,
+    "metadata": {
+      "kMDItemKind": "Application",
+      "kMDItemDescription": "Secure Anonymous Chat Application",
+      "kMDItemContentType": "com.apple.application"
+    }
+  }
+}

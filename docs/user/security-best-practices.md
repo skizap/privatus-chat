@@ -12,7 +12,8 @@ This guide provides essential security practices to maximize your privacy and se
 6. [Device Security](#device-security)
 7. [Operational Security (OpSec)](#operational-security-opsec)
 8. [Emergency Procedures](#emergency-procedures)
-9. [Security Checklist](#security-checklist)
+9. [Security Testing & Auditing](#security-testing--auditing)
+10. [Security Checklist](#security-checklist)
 
 ## Initial Setup
 
@@ -303,6 +304,94 @@ Verification prevents:
 - Question unusual requests
 - Trust your instincts
 
+## Security Testing & Auditing
+
+Regular security testing helps identify and mitigate potential vulnerabilities in your Privatus-chat installation and usage patterns.
+
+### Automated Security Audits
+
+#### Static Code Analysis
+Privatus-chat includes built-in static analysis:
+- **Pattern Detection**: Identifies common vulnerability patterns
+- **Cryptographic Review**: Analyzes encryption implementations
+- **Dependency Scanning**: Checks for vulnerable libraries
+- **Configuration Audit**: Reviews security settings
+
+#### Running Security Audits
+1. **Settings → Security → Run Security Audit**
+2. **Select audit scope** (code, dependencies, configuration)
+3. **Review findings** by severity level
+4. **Export reports** for compliance requirements
+
+#### Audit Categories
+- **Critical**: Immediate security risks requiring attention
+- **High**: Significant vulnerabilities
+- **Medium**: Moderate security concerns
+- **Low**: Minor issues and best practice violations
+- **Info**: Security improvements and recommendations
+
+### Vulnerability Scanning
+
+#### Automated Scanning
+- **Code Vulnerabilities**: Injection attacks, authentication bypass
+- **Cryptographic Issues**: Weak algorithms, key management problems
+- **Network Security**: TLS configuration, port exposure
+- **Access Control**: Authorization flaws, privilege escalation
+
+#### Manual Security Testing
+**Penetration Testing Checklist:**
+- [ ] Test input validation on all forms
+- [ ] Verify authentication mechanisms
+- [ ] Check authorization controls
+- [ ] Review encryption implementations
+- [ ] Test network security controls
+- [ ] Validate secure deletion features
+
+### Security Monitoring
+
+#### Continuous Monitoring
+- **Real-time Alerts**: Immediate notification of security events
+- **Performance Monitoring**: Resource usage anomaly detection
+- **Network Monitoring**: Connection pattern analysis
+- **File Access Monitoring**: Unauthorized access detection
+
+#### Log Analysis
+- **Security Events**: Failed authentication, suspicious activities
+- **Performance Logs**: System behavior patterns
+- **Network Logs**: Connection attempts, data transfers
+- **Audit Logs**: Configuration changes, key operations
+
+### Compliance & Reporting
+
+#### Security Reports
+Generate comprehensive security reports:
+- **Executive Summary**: High-level security posture
+- **Detailed Findings**: Technical vulnerability details
+- **Remediation Plans**: Step-by-step fix procedures
+- **Compliance Status**: Regulatory requirement mapping
+
+#### Report Formats
+- **JSON**: Machine-readable format for tools
+- **HTML**: Web-based report with interactive features
+- **PDF**: Formal reports for management or auditors
+- **CSV**: Spreadsheet-compatible data export
+
+### Security Benchmarking
+
+#### Performance vs Security
+Balance security features with usability:
+- **Privacy Level Impact**: Measure performance cost of security features
+- **Resource Utilization**: Monitor security-related resource usage
+- **Network Overhead**: Track anonymity feature performance impact
+- **Battery Impact**: Mobile device security feature effects
+
+#### Security Metrics
+Track security effectiveness:
+- **Encryption Strength**: Algorithm and key size validation
+- **Authentication Success**: Login attempt patterns
+- **Authorization Effectiveness**: Access control validation
+- **Anonymity Preservation**: Metadata protection verification
+
 ## Emergency Procedures
 
 ### Quick Security Actions
@@ -424,9 +513,15 @@ Verification prevents:
 - Responsible disclosure policy
 - Bug bounty program available
 
+### Additional Security Resources
+- **[Security Testing Guide](feature-security-testing.md)**: Detailed vulnerability scanning and compliance
+- **[Performance Monitoring Guide](feature-performance-monitoring.md)**: Security impact monitoring
+- **[Voice Communication Security](feature-voice-communication.md)**: Secure calling best practices
+- **[File Transfer Security](feature-file-transfer.md)**: Secure file sharing guidelines
+
 ---
 
 *Remember: Security is a process, not a destination. Stay vigilant, stay updated, stay safe.*
 
-*Last updated: December 2024*
-*Version: 1.0.0* 
+*Last updated: January 2025*
+*Version: 1.0.0*

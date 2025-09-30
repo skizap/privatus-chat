@@ -9,7 +9,9 @@ It initializes all core components and starts the GUI application.
 import sys
 import asyncio
 import logging
+import os
 from pathlib import Path
+from dotenv import load_dotenv
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -18,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.crypto import initialize_crypto_system, verify_entropy
 from src.network import P2PNode
 from src.anonymity import PrivacyController, AnonymousIdentityManager, OnionRoutingManager, TrafficAnalysisResistance
+from src.anonymity.privacy_controls import PrivacyLevel
 from src.gui import run_gui_application
 
 # Configure logging
@@ -45,16 +48,28 @@ def setup_application_paths():
 def initialize_core_systems(app_data_dir):
     """Initialize all core Privatus-chat systems."""
     logger.info("=== Initializing Privatus-chat Core Systems ===")
-    
+
+    # Load environment variables from config files
+    load_dotenv(app_data_dir / "config" / "development.env")
+    load_dotenv(app_data_dir / "config" / "production.env")
+
     # Check system entropy
     entropy = verify_entropy()
     logger.info(f"System entropy: {entropy:.1f} bits")
-    
-    # Initialize cryptographic system
+
+    # Initialize cryptographic system with secure password management
     key_storage_path = app_data_dir / "keys"
     logger.info(f"Initializing cryptographic system at: {key_storage_path}")
-    
-    key_manager = initialize_crypto_system(key_storage_path)
+
+    # Get master password from environment variable (secure credential management)
+    master_password = os.getenv('PRIVATUS_MASTER_PASSWORD')
+    if master_password:
+        logger.info("Using master password from environment for key encryption")
+    else:
+        logger.warning("No master password set - keys will not be encrypted at rest")
+        logger.info("Set PRIVATUS_MASTER_PASSWORD environment variable for enhanced security")
+
+    key_manager = initialize_crypto_system(key_storage_path, master_password)
     
     # Generate keys if needed
     if not key_manager.identity_key:
@@ -85,16 +100,16 @@ def initialize_core_systems(app_data_dir):
     
     # Create privacy controls
     privacy_controls = PrivacyController()
-    privacy_controls.set_privacy_level("Standard")
+    privacy_controls.configure_privacy_level(PrivacyLevel.STANDARD)
     
     # Create anonymous identity manager
-    identity_manager = AnonymousIdentityManager()
+    identity_manager = AnonymousIdentityManager(key_manager)
     
     # Create onion router
-    onion_router = OnionRoutingManager()
+    onion_router = OnionRoutingManager(key_manager.identity_key.get_public_key_bytes() if key_manager.identity_key else b'node_id', key_manager)
     
     # Create traffic analysis protection
-    traffic_analysis = TrafficAnalysisResistance()
+    traffic_analysis = TrafficAnalysisResistance(lambda data, msg_type: None)  # Placeholder callback
     
     # Initialize networking (P2P node)
     logger.info("Initializing P2P networking...")
@@ -151,7 +166,7 @@ def display_system_status(core_systems):
     
     print(f"🔐 Privacy Status:")
     privacy_controls = core_systems['privacy_controls']
-    print(f"   • Privacy Level: {privacy_controls.current_settings.level}")
+    print(f"   • Privacy Level: {privacy_controls.settings.privacy_level.value}")
     print(f"   • Anonymous Mode: Active")
     print(f"   • Onion Routing: 3-hop circuits")
     print(f"   • Traffic Analysis Protection: Active")
@@ -174,12 +189,18 @@ def main():
         display_system_status(core_systems)
         
         # Check if GUI should be launched
-        if len(sys.argv) > 1 and sys.argv[1] == "--cli":
-            # CLI mode for testing/debugging
-            logger.info("Running in CLI mode - GUI disabled")
-            print("\n🖥️  CLI Mode: All systems initialized and ready")
-            print("Use --gui or no arguments to launch the graphical interface")
-            return 0
+        if len(sys.argv) > 1:
+            if len(sys.argv) == 2 and sys.argv[1] == "--cli":
+                # CLI mode for testing/debugging
+                logger.info("Running in CLI mode - GUI disabled")
+                print("\n🖥️  CLI Mode: All systems initialized and ready")
+                print("Use --gui or no arguments to launch the graphical interface")
+                return 0
+            else:
+                # Invalid arguments
+                print("Usage: python -m src.main [--cli]")
+                print("  --cli    Run in command-line mode (no GUI)")
+                return 1
         else:
             # Launch GUI application
             logger.info("Launching GUI application...")

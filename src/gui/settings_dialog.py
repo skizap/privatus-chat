@@ -71,14 +71,29 @@ class NetworkSettingsTab(QWidget):
         
     def get_settings(self) -> Dict[str, Any]:
         """Get current network settings."""
+        bootstrap_nodes = []
+        for node in self.bootstrap_nodes.toPlainText().split('\n'):
+            node = node.strip()
+            if node:
+                # Basic validation for IP:port format
+                if ':' in node:
+                    host, port_str = node.rsplit(':', 1)
+                    try:
+                        port = int(port_str)
+                        if 1 <= port <= 65535:
+                            bootstrap_nodes.append(node)
+                        else:
+                            print(f"Warning: Invalid port {port} in bootstrap node {node}")
+                    except ValueError:
+                        print(f"Warning: Invalid port format in bootstrap node {node}")
+                else:
+                    print(f"Warning: Invalid bootstrap node format {node}")
+
         return {
             "listen_port": self.listen_port.value(),
             "max_peers": self.max_peers.value(),
             "connection_timeout": self.connection_timeout.value(),
-            "bootstrap_nodes": [
-                node.strip() for node in self.bootstrap_nodes.toPlainText().split('\n')
-                if node.strip()
-            ]
+            "bootstrap_nodes": bootstrap_nodes
         }
 
 

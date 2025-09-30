@@ -1,0 +1,368 @@
+name: Continuous Deployment
+
+on:
+  push:
+    tags:
+      - 'v*'
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to deploy'
+        required: true
+        type: string
+      environment:
+        description: 'Deployment environment'
+        required: true
+        default: 'staging'
+        type: choice
+        options:
+          - staging
+          - production
+
+env:
+  REGISTRY: docker.io
+  IMAGE_NAME: privatus-chat/privatus-chat
+
+jobs:
+  # Release Management
+  release:
+    name: Create Release
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install release tools
+      run: |
+        pip install requests PyYAML
+
+    - name: Determine version
+      id: version
+      run: |
+        if [[ $GITHUB_REF == refs/tags/* ]]; then
+          VERSION=${GITHUB_REF#refs/tags/v}
+        elif [[ "${{ github.event.inputs.version }}" != "" ]]; then
+          VERSION="${{ github.event.inputs.version }}"
+        else
+          VERSION=$(python -c "import time; print(time.strftime('%Y%m%d%H%M%S'))")
+        fi
+        echo "version=$VERSION" >> $GITHUB_OUTPUT
+        echo "Version: $VERSION"
+
+    - name: Generate release notes
+      id: release_notes
+      run: |
+        python deployment/release_manager.py --version ${{ steps.version.outputs.version }} --generate-notes
+        NOTES_FILE="dist/release_notes_v${{ steps.version.outputs.version }}.md"
+        if [[ -f "$NOTES_FILE" ]]; then
+          NOTES=$(cat "$NOTES_FILE")
+          NOTES="${NOTES//'%'/'%25'}"
+          NOTES="${NOTES//$'\n'/'%0A'}"
+          NOTES="${NOTES//$'\r'/'%0D'}"
+          echo "notes<<EOF" >> $GITHUB_OUTPUT
+          echo "$NOTES" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+        else
+          echo "notes=Release v${{ steps.version.outputs.version }}" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Create GitHub release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: v${{ steps.version.outputs.version }}
+        release_name: Privatus-chat v${{ steps.version.outputs.version }}
+        body: ${{ steps.release_notes.outputs.notes }}
+        draft: false
+        prerelease: ${{ contains(steps.version.outputs.version, 'pre') }}
+
+    - name: Update changelog
+      run: |
+        python deployment/release_manager.py --version ${{ steps.version.outputs.version }} --update-changelog
+
+    - name: Commit changelog updates
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add CHANGELOG.md
+        git commit -m "Update changelog for v${{ steps.version.outputs.version }}" || true
+        git push
+
+  # Build and Package
+  package:
+    name: Build Packages
+    runs-on: ${{ matrix.os }}
+    needs: release
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            architecture: amd64
+          - os: ubuntu-22.04-arm
+            platform: linux
+            architecture: arm64
+          - os: windows-latest
+            platform: windows
+            architecture: amd64
+          - os: macos-latest
+            platform: darwin
+            architecture: amd64
+          - os: macos-latest
+            platform: darwin
+            architecture: arm64
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install system dependencies (Linux)
+      if: matrix.platform == 'linux'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential libssl-dev libffi-dev libsqlite3-dev
+
+    - name: Install build tools (Linux)
+      if: matrix.platform == 'linux'
+      run: |
+        pip install pyinstaller
+        # Install AppImage tools if needed
+        wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage -O appimagetool
+        chmod +x appimagetool
+        sudo mv appimagetool /usr/local/bin/
+
+    - name: Install build tools (Windows)
+      if: matrix.platform == 'windows'
+      run: |
+        pip install pyinstaller
+
+    - name: Install build tools (macOS)
+      if: matrix.platform == 'darwin'
+      run: |
+        brew install create-dmg
+        pip install pyinstaller
+
+    - name: Build application
+      run: |
+        python deployment/build.py --platform ${{ matrix.platform }} --skip-tests
+
+    - name: Create platform packages
+      run: |
+        python deployment/build.py --platform ${{ matrix.platform }} --installer-only --skip-tests
+
+    - name: Upload packages to release
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ needs.release.outputs.upload_url }}
+        asset_path: ./dist/privatus-chat-${{ needs.release.outputs.version }}-${{ matrix.platform }}-${{ matrix.architecture }}.zip
+        asset_name: privatus-chat-${{ needs.release.outputs.version }}-${{ matrix.platform }}-${{ matrix.architecture }}.zip
+        asset_content_type: application/zip
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: packages-${{ matrix.platform }}-${{ matrix.architecture }}
+        path: dist/
+
+  # Docker Deployment
+  docker-deploy:
+    name: Docker Deployment
+    runs-on: ubuntu-latest
+    needs: [release, package]
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+        tags: |
+          type=ref,event=tag
+          type=raw,value=v${{ needs.release.outputs.version }}
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: deployment/Dockerfile.multistage
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        platforms: linux/amd64,linux/arm64
+
+  # Deploy to PyPI
+  pypi-deploy:
+    name: PyPI Deployment
+    runs-on: ubuntu-latest
+    needs: release
+    if: startsWith(github.ref, 'refs/tags/v')
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install build tools
+      run: |
+        python -m pip install --upgrade pip
+        pip install build twine
+
+    - name: Build package
+      run: python -m build
+
+    - name: Publish to PyPI
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      run: |
+        twine upload dist/*
+
+  # Deploy to Package Registries
+  package-registry-deploy:
+    name: Package Registry Deployment
+    runs-on: ubuntu-latest
+    needs: [release, package]
+    strategy:
+      matrix:
+        include:
+          - registry: github
+            token: GITHUB_TOKEN
+          - registry: npm
+            token: NPM_TOKEN
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Download packages
+      uses: actions/download-artifact@v3
+      with:
+        name: packages-linux-amd64
+        path: packages/
+
+    - name: Deploy to registries
+      run: |
+        echo "Deploying packages to ${{ matrix.registry }}..."
+
+  # Update Documentation Site
+  docs-deploy:
+    name: Documentation Deployment
+    runs-on: ubuntu-latest
+    needs: release
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install documentation tools
+      run: |
+        pip install sphinx sphinx-rtd-theme myst-parser
+
+    - name: Build documentation
+      run: |
+        cd docs
+        sphinx-build -b html . _build/html
+
+    - name: Deploy to GitHub Pages
+      uses: peaceiris/actions-gh-pages@v3
+      with:
+        github_token: ${{ secrets.GITHUB_TOKEN }}
+        publish_dir: docs/_build/html
+
+  # Notification and Monitoring
+  notify:
+    name: Deployment Notifications
+    runs-on: ubuntu-latest
+    needs: [release, package, docker-deploy, pypi-deploy, docs-deploy]
+    if: always()
+    steps:
+    - name: Deployment status summary
+      run: |
+        echo "## Deployment Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "| Job | Status |" >> $GITHUB_STEP_SUMMARY
+        echo "|-----|--------|" >> $GITHUB_STEP_SUMMARY
+
+        # Check each job status
+        if [[ "${{ needs.release.result }}" == "success" ]]; then
+          echo "| Release Creation | ✅ Success |" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "| Release Creation | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        if [[ "${{ needs.package.result }}" == "success" ]]; then
+          echo "| Package Building | ✅ Success |" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "| Package Building | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        if [[ "${{ needs.docker-deploy.result }}" == "success" ]]; then
+          echo "| Docker Deployment | ✅ Success |" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "| Docker Deployment | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        if [[ "${{ needs.pypi-deploy.result }}" == "success" ]]; then
+          echo "| PyPI Deployment | ✅ Success |" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "| PyPI Deployment | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        if [[ "${{ needs.docs-deploy.result }}" == "success" ]]; then
+          echo "| Documentation | ✅ Success |" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "| Documentation | ❌ Failed |" >> $GITHUB_STEP_SUMMARY
+        fi
+
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "Version: ${{ needs.release.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+
+    - name: Deployment complete
+      run: |
+        echo "🎉 Deployment of Privatus-chat v${{ needs.release.outputs.version }} completed!"
+
+  # Cleanup
+  cleanup:
+    name: Cleanup
+    runs-on: ubuntu-latest
+    needs: notify
+    if: always()
+    steps:
+    - name: Clean up old artifacts
+      run: |
+        echo "Cleaning up old deployment artifacts..."
+        # Clean up old Docker images, artifacts, etc.

@@ -12,6 +12,9 @@ Key Features:
 """
 
 import json
+import logging
+import time
+import os
 from typing import Dict, Optional, Tuple, Any
 from pathlib import Path
 from cryptography.hazmat.primitives.asymmetric import ed25519
@@ -21,7 +24,138 @@ from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
 from cryptography.exceptions import InvalidSignature
 
+try:
+    from argon2 import low_level
+    ARGON2_AVAILABLE = True
+except ImportError:
+    ARGON2_AVAILABLE = False
+
 from .secure_random import SecureRandom
+
+
+# Security Configuration Constants
+class SecurityConfig:
+    """Security configuration constants for key derivation and encryption."""
+
+    # PBKDF2 Configuration
+    PBKDF2_MIN_ITERATIONS = 1_000_000  # Minimum 1M iterations for production
+    PBKDF2_MAX_ITERATIONS = 10_000_000  # Maximum 10M iterations
+    PBKDF2_TARGET_TIME_MS = 100  # Target derivation time in milliseconds
+    PBKDF2_ADAPTIVE_SAMPLES = 3  # Number of samples for adaptive timing
+
+    # Salt Configuration
+    SALT_LENGTH = 32  # 256-bit salt for enhanced security
+    SALT_MIN_LENGTH = 16  # Minimum acceptable salt length
+
+    # Encryption Configuration
+    KEY_LENGTH = 32  # 256-bit encryption key
+    IV_LENGTH = 16   # 128-bit IV for AES-CBC
+
+    # Performance Configuration
+    PERFORMANCE_TEST_ITERATIONS = 100_000  # Iterations for performance testing
+    ADAPTIVE_TIMEOUT_SECONDS = 30  # Maximum time for adaptive configuration
+
+
+# Global logger for security events
+security_logger = logging.getLogger('security.crypto.key_management')
+
+
+def timing_safe_compare(a: bytes, b: bytes) -> bool:
+    """
+    Perform timing-safe comparison of two byte sequences.
+
+    This function prevents timing attacks by ensuring constant-time comparison
+    regardless of where the first difference occurs.
+
+    Args:
+        a: First byte sequence
+        b: Second byte sequence
+
+    Returns:
+        True if sequences are equal, False otherwise
+    """
+    if len(a) != len(b):
+        return False
+
+    result = 0
+    for x, y in zip(a, b):
+        result |= x ^ y
+
+    return result == 0
+
+
+def generate_secure_salt(length: int = SecurityConfig.SALT_LENGTH) -> bytes:
+    """
+    Generate a cryptographically secure random salt.
+
+    Args:
+        length: Length of salt in bytes
+
+    Returns:
+        Random salt bytes
+
+    Raises:
+        ValueError: If salt length is too short
+    """
+    if length < SecurityConfig.SALT_MIN_LENGTH:
+        raise ValueError(f"Salt length {length} is below minimum {SecurityConfig.SALT_MIN_LENGTH}")
+
+    return SecureRandom.generate_bytes(length)
+
+
+def adaptive_pbkdf2_iterations(password: str, salt: bytes) -> int:
+    """
+    Adaptively determine optimal PBKDF2 iterations based on system performance.
+
+    This function performs timing tests to determine the maximum number of
+    iterations that can be completed within the target time window.
+
+    Args:
+        password: Password to test with
+        salt: Salt to use for testing
+
+    Returns:
+        Optimal iteration count for this system
+    """
+    security_logger.info("Determining adaptive PBKDF2 iterations for system performance")
+
+    # Start with minimum iterations
+    test_iterations = SecurityConfig.PBKDF2_MIN_ITERATIONS
+
+    # Test current performance
+    start_time = time.time()
+    try:
+        kdf = PBKDF2HMAC(
+            algorithm=hashes.SHA256(),
+            length=SecurityConfig.KEY_LENGTH,
+            salt=salt,
+            iterations=SecurityConfig.PERFORMANCE_TEST_ITERATIONS,
+        )
+        kdf.derive(password.encode('utf-8'))
+        test_duration = time.time() - start_time
+
+        # Calculate iterations per second
+        iterations_per_second = SecurityConfig.PERFORMANCE_TEST_ITERATIONS / test_duration
+
+        # Calculate target iterations for desired time
+        target_iterations = int(iterations_per_second * (SecurityConfig.PBKDF2_TARGET_TIME_MS / 1000))
+
+        # Clamp to acceptable range
+        optimal_iterations = max(
+            SecurityConfig.PBKDF2_MIN_ITERATIONS,
+            min(target_iterations, SecurityConfig.PBKDF2_MAX_ITERATIONS)
+        )
+
+        security_logger.info(
+            f"Adaptive PBKDF2: {optimal_iterations:,} iterations "
+            f"({test_duration:.3f}s for {SecurityConfig.PERFORMANCE_TEST_ITERATIONS:,} test iterations)"
+        )
+
+        return optimal_iterations
+
+    except Exception as e:
+        security_logger.warning(f"Failed to determine adaptive iterations, using minimum: {e}")
+        return SecurityConfig.PBKDF2_MIN_ITERATIONS
 
 
 class KeyPair:
@@ -161,7 +295,11 @@ class KeyManager:
         self.storage_path.mkdir(parents=True, exist_ok=True)
         
         # Derive encryption key from password if provided
-        self.encryption_key = self._derive_encryption_key(password) if password else None
+        if password:
+            self.encryption_key, self.encryption_salt = self._derive_encryption_key(password)
+        else:
+            self.encryption_key = None
+            self.encryption_salt = None
         
         # Key storage
         self.identity_key: Optional[IdentityKey] = None
@@ -172,63 +310,133 @@ class KeyManager:
         # Load existing keys
         self._load_keys()
     
-    def _derive_encryption_key(self, password: str) -> bytes:
-        """Derive encryption key from password using PBKDF2."""
-        salt = b"privatus-chat-key-salt"  # Should be stored separately in production
-        kdf = PBKDF2HMAC(
-            algorithm=hashes.SHA256(),
-            length=32,
-            salt=salt,
-            iterations=200000,  # High iteration count for security
-        )
-        return kdf.derive(password.encode('utf-8'))
-    
+    def _derive_encryption_key(self, password: str, salt: Optional[bytes] = None) -> Tuple[bytes, bytes]:
+        """
+        Derive encryption key from password using Argon2 or enhanced PBKDF2.
+
+        This method implements modern security practices including:
+        - Adaptive iteration count based on system performance
+        - Enhanced salt generation
+        - Comprehensive error handling and logging
+        """
+        try:
+            # Generate or validate salt
+            if salt is None:
+                salt = generate_secure_salt(SecurityConfig.SALT_LENGTH)
+                security_logger.info("Generated new secure salt for key derivation")
+            elif len(salt) < SecurityConfig.SALT_MIN_LENGTH:
+                raise ValueError(f"Salt length {len(salt)} is below minimum {SecurityConfig.SALT_MIN_LENGTH}")
+
+            # Validate password strength
+            if not password or len(password) < 8:
+                raise ValueError("Password must be at least 8 characters long")
+
+            if ARGON2_AVAILABLE:
+                security_logger.info("Using Argon2id for key derivation")
+                # Use Argon2id for key derivation (superior to PBKDF2)
+                key = low_level.hash_secret_raw(
+                    secret=password.encode('utf-8'),
+                    salt=salt,
+                    time_cost=3,  # Increased iterations for better security
+                    memory_cost=102400,  # 100 MiB in KiB (enhanced security)
+                    parallelism=4,  # Number of parallel threads
+                    hash_len=SecurityConfig.KEY_LENGTH,  # Output length
+                    type=low_level.Type.ID  # Argon2id variant
+                )
+            else:
+                # Use enhanced PBKDF2 with adaptive iterations
+                security_logger.info("Using enhanced PBKDF2 with adaptive iterations")
+                iterations = adaptive_pbkdf2_iterations(password, salt)
+
+                kdf = PBKDF2HMAC(
+                    algorithm=hashes.SHA256(),
+                    length=SecurityConfig.KEY_LENGTH,
+                    salt=salt,
+                    iterations=iterations,
+                )
+                key = kdf.derive(password.encode('utf-8'))
+
+            security_logger.info("Successfully derived encryption key")
+            return key, salt
+
+        except Exception as e:
+            security_logger.error(f"Failed to derive encryption key: {e}")
+            raise ValueError("Key derivation failed") from e
+
+    def verify_password(self, password: str, stored_key: bytes, salt: bytes) -> bool:
+        """
+        Verify a password using timing-safe comparison.
+
+        Args:
+            password: Password to verify
+            stored_key: Previously derived key to compare against
+            salt: Salt used in original key derivation
+
+        Returns:
+            True if password is correct, False otherwise
+        """
+        try:
+            # Derive key from provided password
+            test_key, _ = self._derive_encryption_key(password, salt)
+
+            # Use timing-safe comparison to prevent timing attacks
+            return timing_safe_compare(test_key, stored_key)
+
+        except Exception as e:
+            security_logger.warning(f"Password verification failed: {e}")
+            return False
+
     def _encrypt_data(self, data: bytes) -> bytes:
         """Encrypt data for storage."""
-        if not self.encryption_key:
+        if not self.encryption_key or not self.encryption_salt:
             return data  # No encryption if no password provided
-        
+
         # Generate random IV
-        iv = SecureRandom.generate_bytes(16)
-        
+        iv = SecureRandom.generate_bytes(SecurityConfig.IV_LENGTH)
+
         # Encrypt with AES-CBC
         cipher = Cipher(
             algorithms.AES(self.encryption_key),
             modes.CBC(iv)
         )
         encryptor = cipher.encryptor()
-        
+
         # Pad data to multiple of 16 bytes
         padding_length = 16 - (len(data) % 16)
         padded_data = data + bytes([padding_length] * padding_length)
-        
+
         encrypted_data = encryptor.update(padded_data) + encryptor.finalize()
-        
-        # Return IV + encrypted data
-        return iv + encrypted_data
+
+        # Return salt + IV + encrypted data
+        return self.encryption_salt + iv + encrypted_data
     
     def _decrypt_data(self, encrypted_data: bytes) -> bytes:
         """Decrypt data from storage."""
-        if not self.encryption_key:
+        if not self.encryption_key or not self.encryption_salt:
             return encrypted_data  # No decryption if no password provided
-        
-        # Extract IV and encrypted data
-        iv = encrypted_data[:16]
-        ciphertext = encrypted_data[16:]
-        
+
+        # Extract salt, IV and encrypted data
+        stored_salt = encrypted_data[:SecurityConfig.SALT_LENGTH]
+        iv = encrypted_data[SecurityConfig.SALT_LENGTH:SecurityConfig.SALT_LENGTH + SecurityConfig.IV_LENGTH]
+        ciphertext = encrypted_data[SecurityConfig.SALT_LENGTH + SecurityConfig.IV_LENGTH:]
+
+        # Verify salt matches (additional security check)
+        if stored_salt != self.encryption_salt:
+            raise ValueError("Salt mismatch - possible tampering")
+
         # Decrypt with AES-CBC
         cipher = Cipher(
             algorithms.AES(self.encryption_key),
             modes.CBC(iv)
         )
         decryptor = cipher.decryptor()
-        
+
         padded_data = decryptor.update(ciphertext) + decryptor.finalize()
-        
+
         # Remove padding
         padding_length = padded_data[-1]
         data = padded_data[:-padding_length]
-        
+
         return data
     
     def generate_identity_key(self) -> IdentityKey:
@@ -369,8 +577,10 @@ class KeyManager:
             self._load_signed_prekey()
             self._load_one_time_prekeys()
         except Exception as e:
-            # Log error but don't fail - keys may not exist yet
-            pass
+            # Log error but don't fail - keys may not exist yet or decryption may fail
+            # This prevents startup failures due to corrupted or inaccessible key files
+            security_logger.warning(f"Failed to load existing keys: {e}")
+            security_logger.info("Will generate new keys if needed")
     
     def _load_identity_key(self) -> None:
         """Load identity key from storage."""

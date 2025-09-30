@@ -30,6 +30,14 @@ class SubmissionStatus(Enum):
     RESOLVED = "resolved"
     DISCLOSED = "disclosed"
 
+
+class BountyStatus(Enum):
+    """Bug bounty program status."""
+    ACTIVE = "active"
+    PAUSED = "paused"
+    MAINTENANCE = "maintenance"
+    CLOSED = "closed"
+
 @dataclass
 class Researcher:
     """Security researcher profile."""

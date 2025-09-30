@@ -1,0 +1,2 @@
+This is a secure file transfer demonstration!
+File contents are encrypted end-to-end.

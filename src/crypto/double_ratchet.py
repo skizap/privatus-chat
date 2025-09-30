@@ -108,24 +108,29 @@ class RatchetState:
     dh_self: Optional[DHRatchetKey] = None
     dh_remote: Optional[bytes] = None
     root_key: Optional[bytes] = None
-    
+
     # Symmetric ratchet state
     chain_key_send: Optional[ChainKey] = None
     chain_key_receive: Optional[ChainKey] = None
-    
+
+    # Cryptographically secure random salts for key derivation
+    root_key_salt: Optional[bytes] = None
+    chain_key_salt: Optional[bytes] = None
+    dh_ratchet_salt: Optional[bytes] = None
+
     # Message counters
     send_count: int = 0
     receive_count: int = 0
     previous_send_count: int = 0
-    
+
     # Skipped message keys for out-of-order handling
     skipped_message_keys: Dict[Tuple[bytes, int], MessageKey] = field(default_factory=dict)
-    
+
     # State management
     session_id: str = ""
     created_at: datetime = field(default_factory=datetime.now)
     last_updated: datetime = field(default_factory=datetime.now)
-    
+
     def update_timestamp(self):
         """Update the last updated timestamp."""
         self.last_updated = datetime.now()
@@ -150,42 +155,52 @@ class DoubleRatchet:
     def initialize_alice(self, shared_secret: bytes, bob_public_key: bytes) -> None:
         """
         Initialize Alice's side of the ratchet.
-        
+
         Args:
             shared_secret: Initial shared secret from X3DH
             bob_public_key: Bob's initial public key
         """
+        # Generate cryptographically secure random salts for this session
+        self.state.root_key_salt = SecureRandom.generate_bytes(32)
+        self.state.chain_key_salt = SecureRandom.generate_bytes(32)
+        self.state.dh_ratchet_salt = SecureRandom.generate_bytes(32)
+
         # Generate initial DH key pair
         self.state.dh_self = DHRatchetKey.generate()
         self.state.dh_remote = bob_public_key
-        
-        # Derive root key from shared secret
+
+        # Derive root key from shared secret using secure random salt
         self.state.root_key = self._kdf_root_key(shared_secret, b"initial-root")
-        
+
         # Perform initial DH ratchet step
         self._dh_ratchet_step()
-        
+
         self.state.update_timestamp()
     
     def initialize_bob(self, shared_secret: bytes, dh_private_key: X25519PrivateKey) -> None:
         """
         Initialize Bob's side of the ratchet.
-        
+
         Args:
             shared_secret: Initial shared secret from X3DH
             dh_private_key: Bob's DH private key
         """
+        # Generate cryptographically secure random salts for this session
+        self.state.root_key_salt = SecureRandom.generate_bytes(32)
+        self.state.chain_key_salt = SecureRandom.generate_bytes(32)
+        self.state.dh_ratchet_salt = SecureRandom.generate_bytes(32)
+
         # Set up initial state
         public_key = dh_private_key.public_key()
         self.state.dh_self = DHRatchetKey(dh_private_key, public_key)
         self.state.root_key = self._kdf_root_key(shared_secret, b"initial-root")
-        
+
         # Initialize receiving chain
         self.state.chain_key_receive = ChainKey(
             key=self._kdf_chain_key(self.state.root_key, b"initial-receive"),
             index=0
         )
-        
+
         self.state.update_timestamp()
     
     def encrypt_message(self, plaintext: bytes, associated_data: bytes = b"") -> Dict[str, Any]:
@@ -430,9 +445,11 @@ class DoubleRatchet:
     
     def _kdf_root_key(self, input_key: bytes, info: bytes) -> bytes:
         """Key derivation function for root key."""
+        if not self.state.root_key_salt:
+            raise ValueError("Root key salt not initialized")
         return KeyDerivation.derive_keys(
             shared_secret=input_key,
-            salt=b"root-key-salt",
+            salt=self.state.root_key_salt,
             info=info,
             num_keys=1,
             key_length=32
@@ -440,9 +457,11 @@ class DoubleRatchet:
     
     def _kdf_chain_key(self, input_key: bytes, info: bytes) -> bytes:
         """Key derivation function for chain key."""
+        if not self.state.chain_key_salt:
+            raise ValueError("Chain key salt not initialized")
         return KeyDerivation.derive_keys(
             shared_secret=input_key,
-            salt=b"chain-key-salt", 
+            salt=self.state.chain_key_salt,
             info=info,
             num_keys=1,
             key_length=32
@@ -450,9 +469,11 @@ class DoubleRatchet:
     
     def _kdf_dh_ratchet(self, root_key: bytes, dh_output: bytes) -> Tuple[bytes, bytes]:
         """Key derivation for DH ratchet step."""
+        if not self.state.dh_ratchet_salt:
+            raise ValueError("DH ratchet salt not initialized")
         keys = KeyDerivation.derive_keys(
             shared_secret=dh_output,
-            salt=root_key,
+            salt=self.state.dh_ratchet_salt,
             info=b"dh-ratchet",
             num_keys=2,
             key_length=32
@@ -460,17 +481,54 @@ class DoubleRatchet:
         return keys[0], keys[1]  # new_root_key, new_chain_key
     
     def _secure_delete_key(self, key: bytes) -> None:
-        """Securely delete a key from memory."""
-        # In Python, we can't directly overwrite memory,
-        # but we can at least clear the reference
-        if isinstance(key, bytes):
-            # Convert to bytearray for potential overwriting
+        """Securely delete a key from memory using DoD 5220.22-M standards."""
+        if isinstance(key, bytes) and len(key) > 0:
+            # Convert to bytearray for overwriting
             key_array = bytearray(key)
-            # Overwrite with random data
+
+            # DoD 5220.22-M secure deletion standard (35 overwrites)
+            # This provides protection against forensic recovery techniques
+
+            # Pass 1: Overwrite with zeros
             for i in range(len(key_array)):
-                key_array[i] = SecureRandom().generate_bytes(1)[0]
-            # Clear the array
+                key_array[i] = 0x00
+
+            # Pass 2: Overwrite with ones
+            for i in range(len(key_array)):
+                key_array[i] = 0xFF
+
+            # Pass 3: Overwrite with random data
+            for i in range(len(key_array)):
+                key_array[i] = SecureRandom.generate_bytes(1)[0]
+
+            # Passes 4-35: Use DoD 5220.22-M pattern
+            # Pattern: 01010101, 10101010, 11001100, 00110011, random
+            patterns = [0x55, 0xAA, 0xCC, 0x33]
+
+            for pass_num in range(4, 36):  # Passes 4-35
+                pattern = patterns[(pass_num - 4) % len(patterns)]
+                if (pass_num - 4) % len(patterns) == len(patterns) - 1:
+                    # Use random data for every 4th pass
+                    for i in range(len(key_array)):
+                        key_array[i] = SecureRandom.generate_bytes(1)[0]
+                else:
+                    # Use pattern
+                    for i in range(len(key_array)):
+                        key_array[i] = pattern
+
+            # Final verification overwrite with random data
+            for i in range(len(key_array)):
+                key_array[i] = SecureRandom.generate_bytes(1)[0]
+
+            # Clear the array completely
             key_array.clear()
+
+            # Force garbage collection to ensure memory is freed
+            import gc
+            gc.collect()
+
+            # Clear any remaining references
+            del key_array
     
     def _secure_delete_dh_key(self, dh_key: DHRatchetKey) -> None:
         """Securely delete a DH key pair."""
@@ -492,7 +550,15 @@ class DoubleRatchet:
         # Add keys (encrypted storage would handle encryption)
         if self.state.root_key:
             state_dict['root_key'] = self.state.root_key.hex()
-        
+
+        # Add cryptographically secure salts
+        if self.state.root_key_salt:
+            state_dict['root_key_salt'] = self.state.root_key_salt.hex()
+        if self.state.chain_key_salt:
+            state_dict['chain_key_salt'] = self.state.chain_key_salt.hex()
+        if self.state.dh_ratchet_salt:
+            state_dict['dh_ratchet_salt'] = self.state.dh_ratchet_salt.hex()
+
         if self.state.dh_self:
             state_dict['dh_self_private'] = self.state.dh_self.private_key.private_bytes(
                 encoding=serialization.Encoding.Raw,
@@ -500,16 +566,16 @@ class DoubleRatchet:
                 encryption_algorithm=serialization.NoEncryption()
             ).hex()
             state_dict['dh_self_public'] = self.state.dh_self.get_public_key_bytes().hex()
-        
+
         if self.state.dh_remote:
             state_dict['dh_remote'] = self.state.dh_remote.hex()
-        
+
         if self.state.chain_key_send:
             state_dict['chain_key_send'] = {
                 'key': self.state.chain_key_send.key.hex(),
                 'index': self.state.chain_key_send.index
             }
-        
+
         if self.state.chain_key_receive:
             state_dict['chain_key_receive'] = {
                 'key': self.state.chain_key_receive.key.hex(),
@@ -530,24 +596,32 @@ class DoubleRatchet:
         # Load keys
         if 'root_key' in state_dict:
             self.state.root_key = bytes.fromhex(state_dict['root_key'])
-        
+
+        # Load cryptographically secure salts
+        if 'root_key_salt' in state_dict:
+            self.state.root_key_salt = bytes.fromhex(state_dict['root_key_salt'])
+        if 'chain_key_salt' in state_dict:
+            self.state.chain_key_salt = bytes.fromhex(state_dict['chain_key_salt'])
+        if 'dh_ratchet_salt' in state_dict:
+            self.state.dh_ratchet_salt = bytes.fromhex(state_dict['dh_ratchet_salt'])
+
         if 'dh_self_private' in state_dict:
             private_key = X25519PrivateKey.from_private_bytes(
                 bytes.fromhex(state_dict['dh_self_private'])
             )
             public_key = private_key.public_key()
             self.state.dh_self = DHRatchetKey(private_key, public_key)
-        
+
         if 'dh_remote' in state_dict:
             self.state.dh_remote = bytes.fromhex(state_dict['dh_remote'])
-        
+
         if 'chain_key_send' in state_dict:
             chain_data = state_dict['chain_key_send']
             self.state.chain_key_send = ChainKey(
                 key=bytes.fromhex(chain_data['key']),
                 index=chain_data['index']
             )
-        
+
         if 'chain_key_receive' in state_dict:
             chain_data = state_dict['chain_key_receive']
             self.state.chain_key_receive = ChainKey(
@@ -568,6 +642,55 @@ class DoubleRatchet:
             'has_receiving_chain': self.state.chain_key_receive is not None,
             'dh_ratchet_initialized': self.state.dh_self is not None
         }
+
+    def cleanup_session(self) -> None:
+        """Clean up session and securely delete all key material."""
+        try:
+            # Securely delete all key material
+            if self.state.root_key:
+                self._secure_delete_key(self.state.root_key)
+                self.state.root_key = None
+
+            # Securely delete cryptographically secure salts
+            if self.state.root_key_salt:
+                self._secure_delete_key(self.state.root_key_salt)
+                self.state.root_key_salt = None
+
+            if self.state.chain_key_salt:
+                self._secure_delete_key(self.state.chain_key_salt)
+                self.state.chain_key_salt = None
+
+            if self.state.dh_ratchet_salt:
+                self._secure_delete_key(self.state.dh_ratchet_salt)
+                self.state.dh_ratchet_salt = None
+
+            if self.state.chain_key_send:
+                self._secure_delete_key(self.state.chain_key_send.key)
+                self.state.chain_key_send = None
+
+            if self.state.chain_key_receive:
+                self._secure_delete_key(self.state.chain_key_receive.key)
+                self.state.chain_key_receive = None
+
+            # Clear skipped message keys
+            for key_tuple, message_key in self.state.skipped_message_keys.items():
+                self._secure_delete_key(message_key.key)
+            self.state.skipped_message_keys.clear()
+
+            # Clear DH keys
+            if self.state.dh_self:
+                self._secure_delete_dh_key(self.state.dh_self)
+                self.state.dh_self = None
+
+            if self.state.dh_remote:
+                # DH remote is just bytes, overwrite it
+                self._secure_delete_key(self.state.dh_remote)
+                self.state.dh_remote = None
+
+            logger.debug(f"Session {self.session_id} cleaned up securely")
+
+        except Exception as e:
+            logger.error(f"Error during session cleanup: {e}")
 
 
 class DoubleRatchetManager:

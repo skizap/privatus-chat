@@ -80,6 +80,12 @@ testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
+markers = [
+    "asyncio: marks tests as async (using asyncio)",
+    "gui: marks tests as GUI-related",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests"
+]
 
 # Coverage configuration
 [tool.coverage.run]

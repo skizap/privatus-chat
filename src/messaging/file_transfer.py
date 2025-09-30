@@ -82,7 +82,7 @@ class FileChunk:
 
 @dataclass
 class FileTransfer:
-    """File transfer session."""
+    """File transfer session with resumable capabilities."""
     transfer_id: str
     file_metadata: FileMetadata
     peer_id: str
@@ -91,6 +91,7 @@ class FileTransfer:
     progress: float = 0.0
     chunks_completed: int = 0
     chunks_failed: List[int] = field(default_factory=list)
+    chunks_pending: List[int] = field(default_factory=list)  # For resumable transfers
     transfer_rate: float = 0.0  # bytes per second
     eta: Optional[timedelta] = None
     local_path: Optional[Path] = None
@@ -98,6 +99,10 @@ class FileTransfer:
     started_at: Optional[datetime] = None
     completed_at: Optional[datetime] = None
     error_message: Optional[str] = None
+    retry_count: int = 0
+    max_retries: int = 3
+    checkpoint_data: Dict[str, Any] = field(default_factory=dict)  # For resumable state
+    last_checkpoint: Optional[datetime] = None
     
     def update_progress(self):
         """Update transfer progress and statistics."""
@@ -300,16 +305,188 @@ class FileTransferManager:
         return False
     
     def resume_transfer(self, transfer_id: str) -> bool:
-        """Resume a paused file transfer."""
+        """Resume a paused file transfer with checkpoint restoration."""
         if transfer_id not in self.active_transfers:
             return False
-            
+
         transfer = self.active_transfers[transfer_id]
         if transfer.status == FileTransferStatus.PAUSED:
+            # Restore from checkpoint if available
+            if transfer.checkpoint_data:
+                self._restore_from_checkpoint(transfer)
+
             transfer.status = FileTransferStatus.TRANSFERRING
-            # Resume transfer logic here
+            transfer.started_at = datetime.now()  # Reset timing for ETA calculation
+
+            # Resume transfer from last completed chunk
+            asyncio.create_task(self._resume_transfer_async(transfer))
             return True
         return False
+
+    def create_checkpoint(self, transfer_id: str) -> bool:
+        """Create a checkpoint for resumable transfer."""
+        if transfer_id not in self.active_transfers:
+            return False
+
+        transfer = self.active_transfers[transfer_id]
+
+        # Create checkpoint data
+        checkpoint = {
+            'chunks_completed': transfer.chunks_completed,
+            'chunks_failed': transfer.chunks_failed.copy(),
+            'chunks_pending': transfer.chunks_pending.copy(),
+            'progress': transfer.progress,
+            'timestamp': datetime.now().isoformat(),
+            'transfer_rate': transfer.transfer_rate
+        }
+
+        transfer.checkpoint_data = checkpoint
+        transfer.last_checkpoint = datetime.now()
+
+        # Persist checkpoint (would save to storage in production)
+        self._persist_checkpoint(transfer_id, checkpoint)
+
+        return True
+
+    def retry_failed_chunks(self, transfer_id: str) -> bool:
+        """Retry failed chunks in a transfer."""
+        if transfer_id not in self.active_transfers:
+            return False
+
+        transfer = self.active_transfers[transfer_id]
+
+        if transfer.retry_count >= transfer.max_retries:
+            transfer.status = FileTransferStatus.FAILED
+            transfer.error_message = "Maximum retry attempts exceeded"
+            return False
+
+        # Reset failed chunks to pending for retry
+        transfer.chunks_pending.extend(transfer.chunks_failed)
+        transfer.chunks_failed.clear()
+        transfer.retry_count += 1
+
+        # Resume transfer with retry
+        if transfer.status == FileTransferStatus.TRANSFERRING:
+            asyncio.create_task(self._retry_chunks_async(transfer))
+
+        return True
+
+    async def _resume_transfer_async(self, transfer: FileTransfer):
+        """Asynchronous transfer resumption."""
+        try:
+            # Request missing chunks from peer
+            missing_chunks = self._identify_missing_chunks(transfer)
+            await self._request_chunks_from_peer(transfer, missing_chunks)
+
+        except Exception as e:
+            transfer.error_message = f"Resume failed: {str(e)}"
+            transfer.status = FileTransferStatus.FAILED
+
+    async def _retry_chunks_async(self, transfer: FileTransfer):
+        """Asynchronous chunk retry."""
+        try:
+            # Retry pending chunks
+            for chunk_id in transfer.chunks_pending[:]:  # Copy to avoid modification during iteration
+                success = await self._request_single_chunk(transfer, chunk_id)
+                if success:
+                    transfer.chunks_pending.remove(chunk_id)
+                    transfer.chunks_completed += 1
+                    transfer.update_progress()
+
+                    # Create checkpoint periodically
+                    if transfer.chunks_completed % 10 == 0:  # Every 10 chunks
+                        self.create_checkpoint(transfer.transfer_id)
+
+        except Exception as e:
+            transfer.error_message = f"Retry failed: {str(e)}"
+
+    def _identify_missing_chunks(self, transfer: FileTransfer) -> List[int]:
+        """Identify chunks that need to be downloaded."""
+        total_chunks = transfer.file_metadata.total_chunks
+        received_chunks = set(range(transfer.chunks_completed))
+        failed_chunks = set(transfer.chunks_failed)
+
+        missing_chunks = []
+        for i in range(total_chunks):
+            if i not in received_chunks and i not in failed_chunks:
+                missing_chunks.append(i)
+
+        return missing_chunks
+
+    async def _request_chunks_from_peer(self, transfer: FileTransfer, chunk_ids: List[int]):
+        """Request multiple chunks from peer."""
+        # Batch chunk requests for efficiency
+        batch_size = 5  # Request 5 chunks at a time
+
+        for i in range(0, len(chunk_ids), batch_size):
+            batch = chunk_ids[i:i + batch_size]
+
+            # Send batch request
+            message_data = {
+                'transfer_id': transfer.transfer_id,
+                'requested_chunks': batch,
+                'is_resume': True
+            }
+
+            # Send through network (placeholder)
+            # await self.network.send_message(transfer.peer_id, MessageType.FILE_CHUNK_REQUEST, message_data)
+
+            # Wait for responses with timeout
+            await asyncio.sleep(1)  # Simulate network delay
+
+    async def _request_single_chunk(self, transfer: FileTransfer, chunk_id: int) -> bool:
+        """Request a single chunk with retry logic."""
+        max_chunk_retries = 3
+
+        for attempt in range(max_chunk_retries):
+            try:
+                message_data = {
+                    'transfer_id': transfer.transfer_id,
+                    'requested_chunk': chunk_id,
+                    'attempt': attempt + 1
+                }
+
+                # Send request (placeholder)
+                # await self.network.send_message(transfer.peer_id, MessageType.FILE_CHUNK_REQUEST, message_data)
+
+                # Simulate waiting for response
+                await asyncio.sleep(0.5)
+
+                # In real implementation, would wait for actual response
+                return True  # Assume success for now
+
+            except Exception as e:
+                if attempt == max_chunk_retries - 1:
+                    transfer.chunks_failed.append(chunk_id)
+                    return False
+
+                # Exponential backoff
+                await asyncio.sleep(2 ** attempt)
+
+        return False
+
+    def _restore_from_checkpoint(self, transfer: FileTransfer):
+        """Restore transfer state from checkpoint."""
+        if not transfer.checkpoint_data:
+            return
+
+        checkpoint = transfer.checkpoint_data
+
+        # Restore progress state
+        transfer.chunks_completed = checkpoint.get('chunks_completed', 0)
+        transfer.chunks_failed = checkpoint.get('chunks_failed', [])
+        transfer.chunks_pending = checkpoint.get('chunks_pending', [])
+        transfer.progress = checkpoint.get('progress', 0.0)
+        transfer.transfer_rate = checkpoint.get('transfer_rate', 0.0)
+
+        # Update ETA based on restored progress
+        transfer.update_progress()
+
+    def _persist_checkpoint(self, transfer_id: str, checkpoint: Dict[str, Any]):
+        """Persist checkpoint data (would save to storage in production)."""
+        # Placeholder for checkpoint persistence
+        # In production, would save to encrypted database
+        pass
     
     def cancel_transfer(self, transfer_id: str) -> bool:
         """Cancel a file transfer."""

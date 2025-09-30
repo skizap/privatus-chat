@@ -14,7 +14,8 @@ A comprehensive guide to using Privatus-chat for secure and anonymous messaging.
 8. [Voice & Video Calls](#voice--video-calls)
 9. [Security Settings](#security-settings)
 10. [Advanced Features](#advanced-features)
-11. [Tips & Best Practices](#tips--best-practices)
+11. [Performance Monitoring](#performance-monitoring)
+12. [Tips & Best Practices](#tips--best-practices)
 
 ## Getting Started
 
@@ -215,6 +216,28 @@ When enabled, Privatus-chat will:
 2. **File Menu**: Click attachment icon 📎
 3. **Paste**: Ctrl+V to paste files/images
 
+### Advanced File Transfer Features
+
+#### Transfer Management
+- **Resume/Pause**: Interrupt and resume large transfers
+- **Checkpoint System**: Automatic progress saving for reliability
+- **Retry Logic**: Automatic retry of failed chunks with exponential backoff
+- **Progress Tracking**: Real-time transfer statistics and ETA
+- **Queue Management**: Multiple concurrent transfers with priority
+
+#### Large File Support
+- **Chunking**: Automatic splitting into 64KB chunks for reliability
+- **Integrity Verification**: SHA-256 checksums for each chunk
+- **Metadata Protection**: Automatic removal of identifying metadata
+- **Anonymous Routing**: Optional transfer through onion circuits
+
+#### Transfer Statistics
+Monitor transfer performance:
+- **Transfer Rate**: Current and average speed
+- **ETA**: Estimated time to completion
+- **Progress**: Percentage and chunks completed/failed
+- **Retry Count**: Failed chunk retry attempts
+
 ### File Types
 
 **Supported**:
@@ -223,18 +246,22 @@ When enabled, Privatus-chat will:
 - Videos (MP4, AVI, MOV)
 - Audio (MP3, WAV, OGG)
 - Archives (ZIP, RAR, 7Z)
+- Any file type (with size limitations)
 
 **Size Limits**:
-- Standard: 100MB per file
-- Large files: Automatically chunked
-- No limit with patience!
+- **Standard Files**: 100MB per file
+- **Large Files**: Automatically chunked and resumed
+- **No theoretical limit** with chunking and resume capability
 
 ### File Security
 
-- All files encrypted end-to-end
-- Integrity verification
-- Secure deletion after transfer
-- Optional expiration dates
+- **End-to-end encrypted** with per-transfer keys
+- **Integrity verification** with SHA-256 checksums
+- **Secure deletion** after successful transfer
+- **Optional expiration dates** for sensitive files
+- **Metadata scrubbing** for anonymity
+- **Anonymous routing** through onion circuits available
+- **Traffic analysis resistance** for transfer patterns
 
 ## Voice & Video Calls
 
@@ -250,20 +277,43 @@ When enabled, Privatus-chat will:
 2. Click video icon 📹
 3. Allow camera access
 
-### Call Features
+### Advanced Call Features
 
-- **End-to-end encrypted**
-- **Noise cancellation**
-- **Echo reduction**
-- **Quality adaptation**
-- **Screen sharing**
+#### Quality Levels
+Privatus-chat supports multiple voice quality levels:
+
+- **Low Quality** (8kHz): Minimal bandwidth, good for poor connections
+- **Medium Quality** (16kHz): Balanced quality and bandwidth (default)
+- **High Quality** (32kHz): Enhanced audio clarity
+- **Ultra Quality** (48kHz): Maximum audio fidelity
+
+#### Audio Codecs
+- **OPUS**: High-quality, low-latency codec (recommended)
+- **Speex**: Optimized for voice communication
+- **G.711 μ-law/A-law**: Standard telephony codecs
+
+#### Voice Privacy Features
+- **Voice Fingerprint Obfuscation**: Protects against voice recognition
+- **Echo Cancellation**: Advanced acoustic echo cancellation
+- **Noise Reduction**: Background noise suppression
+- **Adaptive Quality**: Automatic quality adjustment based on network conditions
+- **Forward Error Correction**: Improved reliability on poor connections
+
+#### Call Statistics
+Monitor call performance in real-time:
+- **Latency**: Round-trip audio delay
+- **Packet Loss**: Connection quality indicator
+- **Bitrate**: Current audio encoding rate
+- **Jitter Buffer**: Audio smoothness buffer
 
 ### Call Privacy
 
-- Voice anonymization available
-- No IP address leakage
-- Encrypted signaling
-- Optional voice masking
+- **End-to-end encrypted** with perfect forward secrecy
+- **Voice anonymization** available for high-threat scenarios
+- **No IP address leakage** through onion routing
+- **Encrypted signaling** for call setup
+- **Optional voice masking** for identity protection
+- **Traffic analysis resistance** for metadata protection
 
 ## Security Settings
 
@@ -299,6 +349,87 @@ Run periodic security checks:
 1. Settings → Security → Run Self-Test
 2. Review results
 3. Fix any issues found
+
+## Performance Monitoring
+
+Privatus-chat includes comprehensive performance monitoring to help you optimize your experience and troubleshoot issues.
+
+### Real-Time Metrics
+
+#### System Performance
+Monitor your system's impact:
+- **CPU Usage**: Application's processor utilization
+- **Memory Usage**: RAM consumption and availability
+- **Disk I/O**: Storage read/write activity
+- **Network I/O**: Data transfer rates
+
+#### Application Metrics
+Track Privatus-chat specific performance:
+- **Message Throughput**: Messages processed per second
+- **Connection Count**: Active peer connections
+- **Encryption Performance**: Crypto operation speeds
+- **Latency**: Network response times
+
+### Performance Dashboard
+
+Access the performance dashboard:
+1. **Settings → Performance**
+2. **View real-time metrics**
+3. **Monitor system resources**
+4. **Track network performance**
+
+#### Dashboard Features
+- **Live Updates**: Real-time metric updates
+- **Historical Trends**: Performance over time
+- **Alert Thresholds**: Configurable performance alerts
+- **Export Data**: Save metrics for analysis
+
+### Benchmark Suite
+
+Run comprehensive performance tests:
+1. **Settings → Performance → Run Benchmarks**
+2. **Test crypto operations**
+3. **Network performance tests**
+4. **Memory operation benchmarks**
+5. **View detailed results**
+
+#### Benchmark Categories
+- **Cryptographic Benchmarks**: Encryption/decryption speeds
+- **Network Benchmarks**: Message serialization and transfer
+- **Memory Benchmarks**: Allocation and access patterns
+- **System Benchmarks**: Overall platform performance
+
+### Performance Optimization
+
+#### Automatic Optimization
+Privatus-chat automatically optimizes:
+- **Connection pooling** for efficient networking
+- **Message batching** for throughput
+- **Caching strategies** for frequently accessed data
+- **Adaptive quality** for calls based on conditions
+
+#### Manual Optimization
+Fine-tune performance settings:
+- **Privacy vs Performance**: Adjust privacy level for speed
+- **Connection Limits**: Configure maximum concurrent connections
+- **Cache Sizes**: Adjust memory cache settings
+- **Thread Pool**: Configure background operation threads
+
+### Performance Alerts
+
+Configure alerts for performance issues:
+- **High CPU Usage**: When exceeding threshold
+- **Memory Pressure**: Low memory warnings
+- **Network Degradation**: Connection quality issues
+- **Slow Operations**: Cryptographic performance alerts
+
+### Troubleshooting with Metrics
+
+Use performance data to diagnose issues:
+- **Slow messaging**: Check network latency and throughput
+- **High resource usage**: Monitor CPU/memory patterns
+- **Connection drops**: Track connection stability metrics
+- **Call quality issues**: Monitor audio performance metrics
 
 ## Advanced Features
 
@@ -389,9 +520,17 @@ Common commands:
 - **Security Issues**: security@privatus-chat.org
 - **Bug Reports**: https://github.com/privatus-chat/issues
 
+### Detailed Feature Documentation
+
+For in-depth information about specific features:
+- **[Voice Communication](feature-voice-communication.md)**: Advanced calling features and configuration
+- **[File Transfer](feature-file-transfer.md)**: Secure file sharing capabilities and troubleshooting
+- **[Performance Monitoring](feature-performance-monitoring.md)**: System optimization and monitoring tools
+- **[Security Testing](feature-security-testing.md)**: Vulnerability scanning and compliance features
+
 ---
 
 *Remember: Your privacy is our priority. Stay safe, stay private.*
 
-*Last updated: December 2024*
-*Version: 1.0.0* 
+*Last updated: January 2025*
+*Version: 1.0.0*

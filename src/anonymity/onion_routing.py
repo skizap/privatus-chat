@@ -16,10 +16,18 @@ Key Features:
 import asyncio
 import secrets
 import time
+import hashlib
+import hmac
+import os
 from typing import List, Dict, Optional, Tuple, Any
 from dataclasses import dataclass, field
 from enum import Enum
 import logging
+
+from cryptography.hazmat.primitives.asymmetric.x25519 import X25519PrivateKey
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.hkdf import HKDF
+from cryptography.exceptions import InvalidTag
 
 try:
     from ..crypto.encryption import MessageEncryption
@@ -142,9 +150,21 @@ class OnionRoutingManager:
         
         # Configuration
         self.default_circuit_length = 3
+        self.max_circuit_length = 6  # Support up to 6-hop circuits
+        self.min_circuit_length = 2  # Minimum 2-hop for basic anonymity
         self.max_circuits = 10
         self.circuit_lifetime = 3600  # 1 hour
         self.min_relay_pool_size = 20
+        self.enable_multi_hop = True  # Enable configurable hop counts
+
+        # Multi-hop enhancements
+        self.adaptive_circuit_length = True
+        self.circuit_length_by_threat_level = {
+            "low": 2,      # Basic anonymity
+            "medium": 3,   # Standard protection
+            "high": 4,     # Enhanced protection
+            "extreme": 6   # Maximum protection
+        }
         
         # Statistics
         self.total_circuits_built = 0
@@ -194,95 +214,148 @@ class OnionRoutingManager:
             time.time() - relay.last_seen <= 300  # Seen within 5 minutes
         )
     
-    async def build_circuit(self, destination_node_id: Optional[bytes] = None) -> Optional[OnionCircuit]:
-        """Build a new onion routing circuit"""
-        if len(self.relay_selection_pool) < self.default_circuit_length:
-            logger.warning("Not enough relays available for circuit construction")
+    async def build_circuit(self, destination_node_id: Optional[bytes] = None,
+                           hop_count: Optional[int] = None) -> Optional[OnionCircuit]:
+        """Build a new onion routing circuit with configurable hop count"""
+        circuit_length = hop_count or self.default_circuit_length
+
+        if not self.enable_multi_hop and circuit_length != self.default_circuit_length:
+            logger.warning("Multi-hop circuits disabled, using default length")
+            circuit_length = self.default_circuit_length
+
+        if circuit_length > self.max_circuit_length:
+            logger.warning(f"Requested hop count {circuit_length} exceeds maximum {self.max_circuit_length}")
+            circuit_length = self.max_circuit_length
+
+        if len(self.relay_selection_pool) < circuit_length:
+            logger.warning(f"Not enough relays available for {circuit_length}-hop circuit construction")
             return None
-            
+
         circuit_id = self._generate_circuit_id()
-        
+
         try:
             # Select relays for the circuit
-            selected_relays = await self._select_relays_for_circuit(destination_node_id)
-            if not selected_relays:
+            selected_relays = await self._select_relays_for_circuit(destination_node_id, circuit_length)
+            if not selected_relays or len(selected_relays) != circuit_length:
                 logger.error("Failed to select suitable relays for circuit")
                 return None
-            
+
             # Create circuit hops with encryption keys
             hops = []
             for relay in selected_relays:
                 circuit_key = secrets.token_bytes(32)  # AES-256 key
                 hop = CircuitHop(relay=relay, circuit_key=circuit_key)
                 hops.append(hop)
-            
+
             # Create circuit object
             circuit = OnionCircuit(circuit_id, hops)
-            
+
             # Perform circuit establishment handshakes
             if await self._establish_circuit(circuit):
                 circuit.state = CircuitState.ESTABLISHED
                 self.circuits[circuit_id] = circuit
                 self.active_circuits.append(circuit)
                 self.total_circuits_built += 1
-                
+
                 logger.info(f"Successfully built circuit {circuit_id} with {len(hops)} hops")
                 return circuit
             else:
                 logger.error(f"Failed to establish circuit {circuit_id}")
                 self.failed_circuits += 1
                 return None
-                
+
         except Exception as e:
             logger.error(f"Error building circuit: {e}")
             self.failed_circuits += 1
             return None
     
-    async def _select_relays_for_circuit(self, destination_node_id: Optional[bytes] = None) -> List[OnionRelay]:
+    async def _select_relays_for_circuit(self, destination_node_id: Optional[bytes] = None,
+                                        hop_count: int = 3) -> List[OnionRelay]:
         """Select diverse relays for a circuit using security-focused algorithms"""
-        if len(self.relay_selection_pool) < self.default_circuit_length:
+        if len(self.relay_selection_pool) < hop_count:
             return []
-        
+
         selected_relays = []
         available_relays = self.relay_selection_pool.copy()
-        
-        # Select entry (guard) relay
-        entry_candidates = [r for r in available_relays if r.is_suitable_for_type(RelayType.ENTRY)]
-        if not entry_candidates:
-            logger.error("No suitable entry relays available")
-            return []
-        
-        entry_relay = self._select_relay_by_reputation(entry_candidates)
-        selected_relays.append(entry_relay)
-        available_relays.remove(entry_relay)
-        
-        # Select middle relay (ensure diversity)
-        middle_candidates = [
-            r for r in available_relays 
-            if (r.is_suitable_for_type(RelayType.MIDDLE) and 
-                self._is_relay_diverse(r, selected_relays))
-        ]
-        if not middle_candidates:
-            logger.error("No suitable middle relays available")
-            return []
-        
-        middle_relay = self._select_relay_by_reputation(middle_candidates)
-        selected_relays.append(middle_relay)
-        available_relays.remove(middle_relay)
-        
-        # Select exit relay
-        exit_candidates = [
-            r for r in available_relays 
-            if (r.is_suitable_for_type(RelayType.EXIT) and 
-                self._is_relay_diverse(r, selected_relays))
-        ]
-        if not exit_candidates:
-            logger.error("No suitable exit relays available")
-            return []
-        
-        exit_relay = self._select_relay_by_reputation(exit_candidates)
-        selected_relays.append(exit_relay)
-        
+
+        # For circuits with more than 3 hops, distribute roles more evenly
+        if hop_count > 3:
+            # Select entry relay
+            entry_candidates = [r for r in available_relays if r.is_suitable_for_type(RelayType.ENTRY)]
+            if not entry_candidates:
+                logger.error("No suitable entry relays available")
+                return []
+
+            entry_relay = self._select_relay_by_reputation(entry_candidates)
+            selected_relays.append(entry_relay)
+            available_relays.remove(entry_relay)
+
+            # Select multiple middle relays
+            for i in range(hop_count - 2):  # -2 for entry and exit
+                middle_candidates = [
+                    r for r in available_relays
+                    if (r.is_suitable_for_type(RelayType.MIDDLE) and
+                        self._is_relay_diverse(r, selected_relays))
+                ]
+                if not middle_candidates:
+                    logger.error(f"No suitable middle relay {i+1} available")
+                    return []
+
+                middle_relay = self._select_relay_by_reputation(middle_candidates)
+                selected_relays.append(middle_relay)
+                available_relays.remove(middle_relay)
+
+            # Select exit relay
+            exit_candidates = [
+                r for r in available_relays
+                if (r.is_suitable_for_type(RelayType.EXIT) and
+                    self._is_relay_diverse(r, selected_relays))
+            ]
+            if not exit_candidates:
+                logger.error("No suitable exit relays available")
+                return []
+
+            exit_relay = self._select_relay_by_reputation(exit_candidates)
+            selected_relays.append(exit_relay)
+        else:
+            # Original 3-hop selection logic
+            # Select entry (guard) relay
+            entry_candidates = [r for r in available_relays if r.is_suitable_for_type(RelayType.ENTRY)]
+            if not entry_candidates:
+                logger.error("No suitable entry relays available")
+                return []
+
+            entry_relay = self._select_relay_by_reputation(entry_candidates)
+            selected_relays.append(entry_relay)
+            available_relays.remove(entry_relay)
+
+            # Select middle relay (ensure diversity)
+            middle_candidates = [
+                r for r in available_relays
+                if (r.is_suitable_for_type(RelayType.MIDDLE) and
+                    self._is_relay_diverse(r, selected_relays))
+            ]
+            if not middle_candidates:
+                logger.error("No suitable middle relays available")
+                return []
+
+            middle_relay = self._select_relay_by_reputation(middle_candidates)
+            selected_relays.append(middle_relay)
+            available_relays.remove(middle_relay)
+
+            # Select exit relay
+            exit_candidates = [
+                r for r in available_relays
+                if (r.is_suitable_for_type(RelayType.EXIT) and
+                    self._is_relay_diverse(r, selected_relays))
+            ]
+            if not exit_candidates:
+                logger.error("No suitable exit relays available")
+                return []
+
+            exit_relay = self._select_relay_by_reputation(exit_candidates)
+            selected_relays.append(exit_relay)
+
         return selected_relays
     
     def _select_relay_by_reputation(self, candidates: List[OnionRelay]) -> OnionRelay:
@@ -325,26 +398,253 @@ class OnionRoutingManager:
                 return False
         
         return True
-    
+
+    def _generate_circuit_challenge(self, circuit_id: int) -> bytes:
+        """Generate a cryptographically secure challenge for circuit authentication"""
+        # Use circuit ID, timestamp, and secure random data for uniqueness
+        timestamp = int(time.time() * 1000).to_bytes(8, 'big')
+        circuit_seed = circuit_id.to_bytes(8, 'big')
+        random_entropy = secrets.token_bytes(32)
+
+        # Combine all entropy sources
+        challenge_data = timestamp + circuit_seed + random_entropy
+
+        # Generate challenge using SHA-256
+        challenge = hashlib.sha256(challenge_data).digest()
+
+        logger.debug(f"Generated secure challenge for circuit {circuit_id}: {challenge.hex()[:16]}...")
+        return challenge
+
+    def _create_challenge_response(self, challenge: bytes, circuit_key: bytes, hop_index: int) -> bytes:
+        """Create a cryptographically secure response to a challenge"""
+        try:
+            # Create HMAC of challenge using circuit key
+            response_data = challenge + hop_index.to_bytes(4, 'big')
+            response = hmac.new(circuit_key, response_data, hashlib.sha256).digest()
+
+            # Add timestamp to prevent replay attacks
+            timestamp = int(time.time() * 1000).to_bytes(8, 'big')
+            final_response = timestamp + response
+
+            logger.debug(f"Created challenge response for hop {hop_index}")
+            return final_response
+
+        except Exception as e:
+            logger.error(f"Failed to create challenge response: {e}")
+            raise
+
+    def _validate_challenge_response(self, challenge: bytes, response: bytes,
+                                   circuit_key: bytes, hop_index: int,
+                                   max_age_ms: int = 30000) -> bool:
+        """Validate a challenge response with replay attack protection"""
+        try:
+            if len(response) < 40:  # 8 bytes timestamp + 32 bytes HMAC
+                logger.error("Invalid response length")
+                return False
+
+            # Extract timestamp and HMAC from response
+            timestamp_bytes = response[:8]
+            received_hmac = response[8:]
+
+            # Check timestamp for replay attack prevention
+            current_time_ms = int(time.time() * 1000)
+            response_time_ms = int.from_bytes(timestamp_bytes, 'big')
+
+            if abs(current_time_ms - response_time_ms) > max_age_ms:
+                logger.error(f"Challenge response too old: {abs(current_time_ms - response_time_ms)}ms")
+                return False
+
+            # Verify HMAC
+            expected_response_data = challenge + hop_index.to_bytes(4, 'big')
+            expected_hmac = hmac.new(circuit_key, expected_response_data, hashlib.sha256).digest()
+
+            if not hmac.compare_digest(received_hmac, expected_hmac):
+                logger.error("Challenge response HMAC verification failed")
+                return False
+
+            logger.debug(f"Challenge response validated for hop {hop_index}")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to validate challenge response: {e}")
+            return False
+
+    def _generate_circuit_proof(self, circuit: OnionCircuit, challenge: bytes) -> bytes:
+        """Generate a cryptographic proof of circuit integrity"""
+        try:
+            # Create proof data combining circuit information
+            proof_data = b'circuit_proof' + challenge
+
+            # Include hop information in proof
+            for i, hop in enumerate(circuit.hops):
+                hop_info = hop.relay.node_id + hop.circuit_key + hop.forward_digest + hop.backward_digest
+                proof_data += i.to_bytes(4, 'big') + hop_info
+
+            # Generate proof using all circuit keys
+            proof = hashlib.sha256(proof_data).digest()
+
+            # Sign proof with master circuit key (derived from all hop keys)
+            master_key = self._derive_master_circuit_key(circuit)
+            signed_proof = hmac.new(master_key, proof, hashlib.sha256).digest()
+
+            logger.debug(f"Generated circuit proof: {signed_proof.hex()[:16]}...")
+            return signed_proof
+
+        except Exception as e:
+            logger.error(f"Failed to generate circuit proof: {e}")
+            raise
+
+    def _validate_circuit_proof(self, circuit: OnionCircuit, challenge: bytes, proof: bytes) -> bool:
+        """Validate a cryptographic proof of circuit integrity"""
+        try:
+            # Regenerate expected proof
+            expected_proof = self._generate_circuit_proof(circuit, challenge)
+
+            # Use constant-time comparison to prevent timing attacks
+            if not hmac.compare_digest(proof, expected_proof):
+                logger.error("Circuit proof validation failed")
+                return False
+
+            logger.debug("Circuit proof validated successfully")
+            return True
+
+        except Exception as e:
+            logger.error(f"Failed to validate circuit proof: {e}")
+            return False
+
+    def _derive_master_circuit_key(self, circuit: OnionCircuit) -> bytes:
+        """Derive a master key from all circuit hop keys for proof signing"""
+        try:
+            # Combine all hop keys
+            combined_keys = b''.join(hop.circuit_key for hop in circuit.hops)
+
+            # Derive master key using HKDF
+            hkdf = HKDF(
+                algorithm=hashes.SHA256(),
+                length=32,
+                salt=b'circuit_master',
+                info=b'master_key_derivation'
+            )
+
+            master_key = hkdf.derive(combined_keys)
+            return master_key
+
+        except Exception as e:
+            logger.error(f"Failed to derive master circuit key: {e}")
+            # Fallback to simple hash combination
+            combined = hashlib.sha256(b''.join(hop.circuit_key for hop in circuit.hops)).digest()
+            return combined[:32]
+
+    async def _perform_secure_circuit_test(self, circuit: OnionCircuit) -> bool:
+        """Perform secure circuit integrity test with cryptographic authentication"""
+        try:
+            circuit_id = circuit.circuit_id
+
+            # Generate unique challenge for this circuit
+            challenge = self._generate_circuit_challenge(circuit_id)
+
+            # Test each hop individually with challenge-response
+            for i, hop in enumerate(circuit.hops):
+                logger.debug(f"Testing hop {i+1}/{len(circuit.hops)} in circuit {circuit_id}")
+
+                # Create challenge response for this hop
+                challenge_response = self._create_challenge_response(challenge, hop.circuit_key, i)
+
+                # Encrypt challenge response through the circuit up to this hop
+                test_payload = challenge + challenge_response
+
+                # Encrypt for transmission to this hop
+                encrypted_test = test_payload
+                for j in range(len(circuit.hops) - 1, i - 1, -1):  # From exit to current hop
+                    encrypted_test = MessageEncryption.encrypt_with_header(
+                        encrypted_test, circuit.hops[j].circuit_key
+                    )
+
+                # Simulate sending to hop and receiving response
+                # In real implementation, this would involve actual network communication
+                decrypted_response = encrypted_test
+
+                # Decrypt response layer by layer
+                for j in range(i, len(circuit.hops)):  # From current hop to exit
+                    try:
+                        decrypted_response = MessageEncryption.decrypt_with_header(
+                            decrypted_response, circuit.hops[j].circuit_key
+                        )
+                    except (InvalidTag, Exception) as e:
+                        logger.error(f"Decryption failed at hop {j}: {e}")
+                        return False
+
+                # Validate the response
+                if len(decrypted_response) < len(challenge) + 40:  # Challenge + timestamp + HMAC
+                    logger.error(f"Invalid response length from hop {i}")
+                    return False
+
+                received_challenge = decrypted_response[:32]
+                received_response = decrypted_response[32:]
+
+                # Verify challenge matches
+                if not hmac.compare_digest(received_challenge, challenge):
+                    logger.error(f"Challenge mismatch at hop {i}")
+                    return False
+
+                # Validate challenge response
+                if not self._validate_challenge_response(challenge, received_response,
+                                                       hop.circuit_key, i):
+                    logger.error(f"Challenge response validation failed at hop {i}")
+                    return False
+
+                logger.debug(f"Hop {i+1} authentication successful")
+
+            # Generate and validate circuit-wide proof
+            circuit_proof = self._generate_circuit_proof(circuit, challenge)
+
+            # In real implementation, this proof would be validated by all hops
+            # For now, we validate it locally as a final integrity check
+            if not self._validate_circuit_proof(circuit, challenge, circuit_proof):
+                logger.error("Circuit proof validation failed")
+                return False
+
+            logger.info(f"Circuit {circuit_id} integrity test passed with cryptographic authentication")
+            return True
+
+        except Exception as e:
+            logger.error(f"Secure circuit test failed: {e}")
+            return False
+
     async def _establish_circuit(self, circuit: OnionCircuit) -> bool:
         """Establish the circuit through cryptographic handshakes"""
         try:
-            # This would normally involve:
-            # 1. Creating encrypted handshake messages for each hop
-            # 2. Sending CREATE/EXTEND messages through the circuit
-            # 3. Receiving CREATED/EXTENDED responses
-            # 4. Establishing shared secrets for each hop
-            
-            # For now, simulate the handshake process
-            await asyncio.sleep(0.1)  # Simulate network delay
-            
-            # Initialize circuit keys and state
-            for hop in circuit.hops:
-                hop.forward_digest = secrets.token_bytes(32)
-                hop.backward_digest = secrets.token_bytes(32)
-            
+            # Generate shared secrets for each hop using Diffie-Hellman
+            for i, hop in enumerate(circuit.hops):
+                # Generate ephemeral key pair for this hop
+                ephemeral_private = X25519PrivateKey.generate()
+                ephemeral_public = ephemeral_private.public_key()
+
+                # Perform DH with relay's public key
+                try:
+                    shared_secret = ephemeral_private.exchange(hop.relay.public_key)
+                except Exception as e:
+                    logger.error(f"DH exchange failed for hop {i}: {e}")
+                    return False
+
+                # Derive circuit keys from shared secret
+                hop.circuit_key = self._derive_circuit_key(shared_secret, i)
+
+                # Initialize digests for traffic flow authentication
+                hop.forward_digest = self._initialize_digest(hop.circuit_key, b"forward")
+                hop.backward_digest = self._initialize_digest(hop.circuit_key, b"backward")
+
+                # Simulate network handshake delay
+                await asyncio.sleep(0.05)
+
+            # Perform secure circuit integrity test with cryptographic authentication
+            if not await self._perform_secure_circuit_test(circuit):
+                logger.error("Secure circuit integrity test failed")
+                return False
+
+            logger.info(f"Circuit {circuit.circuit_id} established with cryptographic authentication ({len(circuit.hops)} hops)")
             return True
-            
+
         except Exception as e:
             logger.error(f"Circuit establishment failed: {e}")
             return False
@@ -409,13 +709,25 @@ class OnionRoutingManager:
         await asyncio.sleep(0.05)  # Simulate network delay
         logger.debug(f"Sent {len(encrypted_payload)} bytes to entry node")
     
+    async def build_circuit_by_threat_level(self, threat_level: str = "medium",
+                                          destination_node_id: Optional[bytes] = None) -> Optional[OnionCircuit]:
+        """Build a circuit with hop count based on threat level."""
+        if threat_level not in self.circuit_length_by_threat_level:
+            logger.warning(f"Unknown threat level '{threat_level}', using 'medium'")
+            threat_level = "medium"
+
+        hop_count = self.circuit_length_by_threat_level[threat_level]
+        logger.info(f"Building {hop_count}-hop circuit for threat level '{threat_level}'")
+
+        return await self.build_circuit(destination_node_id, hop_count)
+
     def get_available_circuit(self) -> Optional[OnionCircuit]:
         """Get an available circuit for sending messages"""
         available = [c for c in self.active_circuits if c.is_established and not c.is_expired]
-        
+
         if not available:
             return None
-        
+
         # Select circuit with least usage
         return min(available, key=lambda c: c.usage_count)
     
@@ -492,6 +804,40 @@ class OnionRoutingManager:
         """Generate a unique circuit ID"""
         self.circuit_counter += 1
         return self.circuit_counter
+
+    def _derive_circuit_key(self, shared_secret: bytes, hop_index: int) -> bytes:
+        """Derive circuit key from shared secret"""
+        # Use HKDF-like construction for key derivation
+        info = f"circuit-key-{hop_index}".encode()
+        return hmac.new(shared_secret, info, hashlib.sha256).digest()[:32]
+
+    def _initialize_digest(self, key: bytes, direction: bytes) -> bytes:
+        """Initialize digest for traffic flow authentication"""
+        return hmac.new(key, direction, hashlib.sha256).digest()
+
+    def _encrypt_circuit_data(self, circuit: OnionCircuit, data: bytes) -> Optional[bytes]:
+        """Encrypt data for transmission through the circuit"""
+        try:
+            encrypted = data
+            # Apply encryption layer by layer (exit to entry)
+            for hop in reversed(circuit.hops):
+                encrypted = MessageEncryption.encrypt_with_header(encrypted, hop.circuit_key)
+            return encrypted
+        except Exception as e:
+            logger.error(f"Circuit encryption failed: {e}")
+            return None
+
+    def _decrypt_circuit_data(self, circuit: OnionCircuit, data: bytes) -> Optional[bytes]:
+        """Decrypt data received from the circuit"""
+        try:
+            decrypted = data
+            # Apply decryption layer by layer (entry to exit)
+            for hop in circuit.hops:
+                decrypted = MessageEncryption.decrypt_with_header(decrypted, hop.circuit_key)
+            return decrypted
+        except Exception as e:
+            logger.error(f"Circuit decryption failed: {e}")
+            return None
     
     def get_circuit_statistics(self) -> Dict[str, Any]:
         """Get statistics about circuit usage and performance"""

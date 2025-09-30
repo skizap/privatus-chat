@@ -8,7 +8,8 @@
 4. [Features & Usage](#features--usage)
 5. [Troubleshooting](#troubleshooting)
 6. [Technical Questions](#technical-questions)
-7. [Community & Support](#community--support)
+7. [Performance & Monitoring](#performance--monitoring)
+8. [Community & Support](#community--support)
 
 ## General Questions
 
@@ -186,12 +187,16 @@ Yes, with some considerations:
 
 ### Can I make voice/video calls?
 
-**Yes! Call features:**
-- End-to-end encrypted calls
-- Voice calls supported
-- Video calls (coming soon)
-- Screen sharing available
-- No IP address leakage
+**Yes! Advanced call features:**
+- **End-to-end encrypted calls** with perfect forward secrecy
+- **Voice calls** with multiple quality levels (Low to Ultra)
+- **Multiple codecs**: OPUS, Speex, G.711 for compatibility
+- **Voice privacy features**: Fingerprint obfuscation, echo cancellation
+- **Adaptive quality**: Automatic adjustment based on network conditions
+- **Call statistics**: Real-time latency, packet loss, and bitrate monitoring
+- **Video calls** (coming soon)
+- **Screen sharing** available
+- **No IP address leakage** through onion routing
 
 ### How do group chats work?
 
@@ -204,12 +209,16 @@ Yes, with some considerations:
 
 ### Can I share files?
 
-**File sharing:**
-- Drag and drop files
-- Automatic encryption
-- Progress tracking
-- Resume interrupted transfers
-- Any file type supported
+**Advanced file sharing:**
+- **Drag and drop files** into chat window
+- **Automatic encryption** with per-transfer keys
+- **Progress tracking** with real-time statistics
+- **Resume interrupted transfers** with checkpoint system
+- **Any file type supported** with size limits
+- **Chunked transfer**: Large files split into 64KB chunks
+- **Integrity verification**: SHA-256 checksums for each chunk
+- **Anonymous routing**: Optional transfer through onion circuits
+- **Metadata protection**: Automatic removal of identifying information
 
 ### What are privacy levels?
 
@@ -274,6 +283,52 @@ Yes, with some considerations:
 - Clear old messages
 - Check network speed
 - Upgrade hardware
+
+## Performance & Monitoring
+
+### Does Privatus-chat monitor performance?
+
+**Yes! Comprehensive monitoring:**
+- **Real-time metrics**: CPU, memory, disk, network usage
+- **Application metrics**: Message throughput, connection counts
+- **Performance dashboard**: Live monitoring interface
+- **Benchmark suite**: Comprehensive performance testing
+- **Automatic optimization**: Adaptive quality and resource management
+
+### How can I monitor my system's performance?
+
+**Performance monitoring:**
+- Access via **Settings → Performance**
+- View **real-time system metrics**
+- Monitor **network performance**
+- Track **application resource usage**
+- Export **metrics for analysis**
+
+### Can I run performance benchmarks?
+
+**Yes! Built-in benchmark suite:**
+- **Cryptographic benchmarks**: Test encryption/decryption speeds
+- **Network benchmarks**: Message serialization and transfer performance
+- **Memory benchmarks**: Allocation and access pattern testing
+- **System benchmarks**: Overall platform performance assessment
+- **Detailed reporting**: Results with statistical analysis
+
+### How does Privatus-chat optimize performance?
+
+**Automatic optimizations:**
+- **Connection pooling**: Efficient network resource usage
+- **Message batching**: Improved throughput for multiple messages
+- **Caching strategies**: Fast access to frequently used data
+- **Adaptive quality**: Automatic adjustment based on conditions
+- **Resource management**: Intelligent memory and CPU usage
+
+### What performance metrics are tracked?
+
+**Comprehensive metrics:**
+- **System**: CPU usage, memory consumption, disk I/O, network I/O
+- **Application**: Messages/second, active connections, encryption performance
+- **Network**: Latency, packet loss, throughput, connection stability
+- **Storage**: Database performance, cache hit rates, I/O patterns
 
 ## Technical Questions
 
@@ -379,9 +434,15 @@ Yes, with some considerations:
 - [Research papers](https://privatus-chat.org/research)
 - Security workshops
 
+**Feature-Specific Documentation:**
+- **[Voice Communication Guide](feature-voice-communication.md)**: Detailed calling features
+- **[File Transfer Guide](feature-file-transfer.md)**: Advanced file sharing capabilities
+- **[Performance Monitoring Guide](feature-performance-monitoring.md)**: System optimization tools
+- **[Security Testing Guide](feature-security-testing.md)**: Vulnerability scanning features
+
 ---
 
 *Can't find your answer? Ask on our [community forum](https://forum.privatus-chat.org) or create an [issue](https://github.com/privatus-chat/issues).*
 
-*Last updated: December 2024*
-*Version: 1.0.0* 
+*Last updated: January 2025*
+*Version: 1.0.0*

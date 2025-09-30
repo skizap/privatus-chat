@@ -1,0 +1,241 @@
+{
+  "environment": "testing",
+  "name": "Testing Environment",
+  "description": "Testing environment with comprehensive test coverage and quality checks",
+
+  "build": {
+    "optimization_level": "standard",
+    "debug_info": true,
+    "strip_binaries": false,
+    "include_tests": true,
+    "create_debug_symbols": true,
+    "enable_profiling": true,
+    "enable_coverage": true
+  },
+
+  "deployment": {
+    "auto_deploy": false,
+    "require_approval": false,
+    "create_backups": true,
+    "rollback_on_failure": true,
+    "notify_on_success": false,
+    "notify_on_failure": true,
+    "health_checks": true,
+    "smoke_tests": true
+  },
+
+  "features": {
+    "file_transfer": true,
+    "voice_calls": true,
+    "performance_monitoring": true,
+    "security_testing": true,
+    "gui_enhancements": true,
+    "crypto_optimizations": true,
+    "debug_features": true,
+    "development_tools": false
+  },
+
+  "logging": {
+    "level": "INFO",
+    "format": "structured",
+    "output": ["console", "file"],
+    "file_path": "logs/privatus-chat-test.log",
+    "max_size": "200MB",
+    "backup_count": 10,
+    "enable_timestamps": true,
+    "enable_thread_info": true,
+    "enable_stack_traces": true,
+    "log_test_output": true,
+    "log_performance_metrics": true
+  },
+
+  "security": {
+    "relaxed_checks": false,
+    "allow_insecure_connections": false,
+    "disable_certificate_validation": false,
+    "enable_security_audit": true,
+    "require_encryption": true,
+    "allow_self_signed_certificates": false,
+    "test_security_features": true,
+    "simulate_attacks": true,
+    "fuzzing_enabled": true
+  },
+
+  "performance": {
+    "monitoring_enabled": true,
+    "detailed_metrics": true,
+    "memory_profiling": true,
+    "cpu_profiling": true,
+    "network_monitoring": true,
+    "gui_responsiveness_tracking": true,
+    "cache_statistics": true,
+    "benchmarking": true,
+    "load_testing": true,
+    "stress_testing": true
+  },
+
+  "testing": {
+    "run_all_tests": true,
+    "fail_fast": false,
+    "generate_coverage_report": true,
+    "run_performance_tests": true,
+    "run_security_tests": true,
+    "run_integration_tests": true,
+    "run_unit_tests": true,
+    "run_gui_tests": true,
+    "run_network_tests": true,
+    "run_crypto_tests": true,
+    "test_timeout": 600,
+    "parallel_execution": true,
+    "workers": 6,
+    "coverage_threshold": {
+      "statements": 80,
+      "branches": 75,
+      "functions": 80,
+      "lines": 80
+    },
+    "test_categories": [
+      "unit",
+      "integration",
+      "gui",
+      "network",
+      "crypto",
+      "performance",
+      "security",
+      "usability"
+    ]
+  },
+
+  "gui": {
+    "theme": "testing",
+    "show_debug_info": true,
+    "show_performance_metrics": true,
+    "show_network_status": true,
+    "show_crypto_status": true,
+    "enable_animations": false,
+    "developer_menu": true,
+    "experimental_features": false,
+    "accessibility_testing": true,
+    "gui_automation": true
+  },
+
+  "network": {
+    "p2p_debug": true,
+    "show_peer_info": true,
+    "log_all_messages": true,
+    "enable_packet_inspection": true,
+    "simulate_network_conditions": true,
+    "test_network_failures": true,
+    "network_simulation": {
+      "latency_ms": [0, 50, 100, 200, 500],
+      "packet_loss_percent": [0, 1, 5, 10],
+      "bandwidth_kbps": [100, 1000, 10000, 100000],
+      "jitter_ms": [0, 10, 50, 100]
+    }
+  },
+
+  "crypto": {
+    "debug_mode": true,
+    "log_key_operations": true,
+    "show_key_info": true,
+    "enable_key_inspection": true,
+    "test_crypto_failures": true,
+    "performance_analysis": true,
+    "crypto_testing": {
+      "test_vectors": true,
+      "known_answer_tests": true,
+      "randomness_tests": true,
+      "side_channel_tests": true,
+      "timing_attack_tests": true
+    }
+  },
+
+  "storage": {
+    "debug_mode": true,
+    "log_all_operations": true,
+    "show_storage_info": true,
+    "enable_storage_inspection": true,
+    "test_storage_failures": true,
+    "performance_analysis": true,
+    "storage_testing": {
+      "corruption_tests": true,
+      "concurrency_tests": true,
+      "performance_tests": true,
+      "backup_restore_tests": true
+    }
+  },
+
+  "notifications": {
+    "enable_toasts": true,
+    "show_debug_notifications": true,
+    "log_notifications": true,
+    "test_notification_system": true,
+    "notification_testing": {
+      "test_all_channels": true,
+      "test_rate_limiting": true,
+      "test_error_conditions": true
+    }
+  },
+
+  "error_handling": {
+    "show_detailed_errors": true,
+    "enable_error_reporting": true,
+    "create_error_dumps": true,
+    "show_stack_traces": true,
+    "enable_crash_reporting": false,
+    "error_simulation": {
+      "simulate_crashes": true,
+      "simulate_memory_errors": true,
+      "simulate_network_errors": true,
+      "simulate_crypto_errors": true
+    }
+  },
+
+  "compatibility": {
+    "check_system_requirements": true,
+    "allow_unsupported_systems": false,
+    "skip_version_checks": false,
+    "ignore_deprecation_warnings": false,
+    "test_compatibility": {
+      "test_multiple_os": true,
+      "test_different_architectures": true,
+      "test_various_desktop_environments": true,
+      "test_different_python_versions": true
+    }
+  },
+
+  "quality_gates": {
+    "minimum_test_coverage": 80,
+    "maximum_cyclomatic_complexity": 10,
+    "minimum_performance_score": 7.0,
+    "maximum_security_vulnerabilities": 0,
+    "minimum_usability_score": 7.0,
+    "code_quality_checks": [
+      "pylint",
+      "flake8",
+      "black",
+      "isort",
+      "mypy",
+      "bandit",
+      "safety"
+    ]
+  },
+
+  "test_data": {
+    "generate_test_data": true,
+    "test_data_size": "medium",
+    "include_multimedia_files": true,
+    "include_large_files": true,
+    "include_special_characters": true,
+    "internationalization_test_data": true
+  },
+
+  "automation": {
+    "headless_testing": true,
+    "parallel_test_execution": true,
+    "test_result_reporting": true,
+    "screenshot_on_failure": true,
+    "video_recording": false,
+    "performance_baseline_comparison": true
+  }
+}

@@ -33,7 +33,8 @@ import time
 # Add src to path for imports
 sys.path.insert(0, str(Path.cwd()))
 
-from src.crypto import SecureRandom, KeyManager, MessageEncryption, KeyDerivation
+from src.crypto import SecureRandom, KeyManager, KeyDerivation
+from src.crypto.encryption import MessageEncryption
 from src.crypto.double_ratchet import DoubleRatchetManager, DoubleRatchet
 from src.network import P2PNode, KademliaDHT, ConnectionManager
 from src.anonymity import OnionRoutingManager, TrafficAnalysisResistance, AnonymousIdentityManager, PrivacyController
@@ -123,7 +124,9 @@ class ComprehensiveDemo:
         
         # Phase 1: Cryptographic Foundation
         print("📋 Phase 1: Cryptographic Foundation")
-        self.key_manager = KeyManager(self.demo_data_dir / "keys", "demo_password_2024")
+        # Initialize key manager without hardcoded password for demo
+        # In production, password should be provided via environment variable or secure input
+        self.key_manager = KeyManager(self.demo_data_dir / "keys")
         if not self.key_manager.identity_key:
             self.key_manager.generate_identity_key()
         if not self.key_manager.signed_prekey:
@@ -138,8 +141,11 @@ class ComprehensiveDemo:
         
         # Phase 2: Storage Systems
         print("📋 Phase 2: Storage Systems")
-        self.storage_manager = StorageManager(self.demo_data_dir, "demo_password_2024")
-        self.enhanced_storage = EnhancedStorageManager(self.demo_data_dir, "demo_password_2024")
+        # Initialize storage managers with demo password
+        # In production, passwords should be provided via environment variables or secure input
+        demo_password = "privatus_demo_password_2024"
+        self.storage_manager = StorageManager(self.demo_data_dir, demo_password)
+        self.enhanced_storage = EnhancedStorageManager(self.demo_data_dir, demo_password)
         print("   ✅ Basic and enhanced storage systems initialized")
         
         # Phase 3: Anonymity System
@@ -181,7 +187,7 @@ class ComprehensiveDemo:
         encryption_key = MessageEncryption.generate_key()
         
         nonce, ciphertext = MessageEncryption.encrypt(test_message.encode(), encryption_key)
-        decrypted = MessageEncryption.decrypt(ciphertext, encryption_key, nonce)
+        decrypted = MessageEncryption.decrypt(nonce, ciphertext, encryption_key)
         
         print(f"   📤 Original: {test_message}")
         print(f"   🔒 Encrypted: {len(ciphertext)} bytes")

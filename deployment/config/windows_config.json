@@ -1,0 +1,119 @@
+{
+  "platform": "windows",
+  "architecture": "x64",
+  "version": "3.0.0",
+  "build_date": "2024-09-30T00:00:00Z",
+
+  "installer": {
+    "type": "msi",
+    "output_name": "privatus-chat-3.0.0-windows-x64.msi",
+    "wix_config": {
+      "upgrade_code": "12345678-1234-1234-1234-123456789012",
+      "manufacturer": "Privatus-chat Project",
+      "install_scope": "perMachine",
+      "require_admin": false
+    }
+  },
+
+  "application": {
+    "name": "Privatus-chat",
+    "display_name": "Privatus-chat",
+    "description": "Secure Anonymous Chat Application",
+    "publisher": "Privatus-chat Project",
+    "homepage": "https://github.com/privatus-chat/privatus-chat",
+    "support_url": "https://github.com/privatus-chat/privatus-chat/issues",
+    "privacy_url": "https://github.com/privatus-chat/privatus-chat/blob/main/PRIVACY.md"
+  },
+
+  "installation": {
+    "install_dir": "%ProgramFiles%\\Privatus-chat",
+    "data_dir": "%APPDATA%\\Privatus-chat",
+    "create_shortcuts": true,
+    "create_uninstaller": true,
+    "add_to_path": true,
+    "register_file_associations": true,
+    "windows_firewall": {
+      "add_exception": true,
+      "name": "Privatus-chat",
+      "description": "Privatus-chat P2P Communication",
+      "ports": "8000-9000",
+      "protocol": "tcp"
+    }
+  },
+
+  "shortcuts": {
+    "desktop": {
+      "create": true,
+      "name": "Privatus-chat",
+      "description": "Launch Privatus-chat",
+      "icon": "privatus-chat.ico"
+    },
+    "start_menu": {
+      "create": true,
+      "folder": "Privatus-chat",
+      "name": "Privatus-chat",
+      "description": "Launch Privatus-chat"
+    }
+  },
+
+  "registry": {
+    "uninstall_key": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Uninstall\\Privatus-chat",
+    "app_key": "HKEY_LOCAL_MACHINE\\SOFTWARE\\Privatus-chat",
+    "entries": {
+      "InstallLocation": "%ProgramFiles%\\Privatus-chat",
+      "Version": "3.0.0",
+      "Publisher": "Privatus-chat Project",
+      "UninstallString": "%ProgramFiles%\\Privatus-chat\\uninstall.exe"
+    }
+  },
+
+  "security": {
+    "code_signing": {
+      "enabled": false,
+      "certificate_file": null,
+      "certificate_password": null,
+      "timestamp_server": "http://timestamp.digicert.com"
+    },
+    "permissions": {
+      "microphone": "Privatus-chat needs microphone access for secure voice calls.",
+      "camera": "Privatus-chat needs camera access for secure video calls.",
+      "network": "Privatus-chat uses local network for peer-to-peer connections."
+    }
+  },
+
+  "features": {
+    "file_transfer": true,
+    "voice_calls": true,
+    "performance_monitoring": true,
+    "security_testing": true,
+    "gui_enhancements": true,
+    "crypto_optimizations": true
+  },
+
+  "dependencies": {
+    "python": "3.11",
+    "runtime": {
+      "download_url": "https://www.python.org/ftp/python/3.11.0/python-3.11.0-amd64.exe",
+      "install_args": "/quiet InstallAllUsers=1 PrependPath=1"
+    },
+    "redistributables": {
+      "vc_redist": {
+        "x64": "https://aka.ms/vs/17/release/vc_redist.x64.exe",
+        "args": "/install /quiet /norestart"
+      }
+    }
+  },
+
+  "environment": {
+    "PRIVATUS_DATA_DIR": "%APPDATA%\\Privatus-chat",
+    "PRIVATUS_CONFIG_DIR": "%APPDATA%\\Privatus-chat",
+    "PYTHONPATH": "%ProgramFiles%\\Privatus-chat",
+    "PATH": "%ProgramFiles%\\Privatus-chat;%PATH%"
+  },
+
+  "compatibility": {
+    "windows_versions": ["10", "11"],
+    "minimum_build": "19041",
+    "supported_architectures": ["x64", "arm64"]
+  }
+}

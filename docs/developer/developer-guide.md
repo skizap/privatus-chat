@@ -503,6 +503,12 @@ Reviewers will check:
 - [API Reference](api-reference.md)
 - [Security Model](../security/threat-model.md)
 
+### Feature Documentation
+- **[Voice Communication](../user/feature-voice-communication.md)**: Advanced calling system implementation
+- **[File Transfer](../user/feature-file-transfer.md)**: Secure file sharing architecture
+- **[Performance Monitoring](../user/feature-performance-monitoring.md)**: System optimization features
+- **[Security Testing](../user/feature-security-testing.md)**: Vulnerability scanning framework
+
 ### External Resources
 - [Signal Protocol Docs](https://signal.org/docs/)
 - [PyQt6 Documentation](https://doc.qt.io/qtforpython/)
@@ -519,5 +525,5 @@ Reviewers will check:
 
 *Happy coding! Remember: Security and privacy come first.*
 
-*Last updated: December 2024*
-*Version: 1.0.0* 
+*Last updated: January 2025*
+*Version: 1.0.0*

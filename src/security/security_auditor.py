@@ -10,6 +10,7 @@ from typing import Dict, List, Any, Optional, Tuple
 from dataclasses import dataclass, field
 from pathlib import Path
 from datetime import datetime
+from enum import Enum
 import threading
 import inspect
 import ast
@@ -17,6 +18,15 @@ import re
 import subprocess
 
 from ..crypto.secure_random import SecureRandom
+
+
+class AuditSeverity(Enum):
+    """Security audit severity levels."""
+    CRITICAL = "critical"
+    HIGH = "high"
+    MEDIUM = "medium"
+    LOW = "low"
+    INFO = "info"
 
 @dataclass
 class SecurityIssue:

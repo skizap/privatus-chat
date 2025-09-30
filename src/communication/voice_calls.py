@@ -37,7 +37,11 @@ try:
     import scipy.signal
     AUDIO_AVAILABLE = True
 except ImportError:
+    np = None
     AUDIO_AVAILABLE = False
+
+# Define ArrayType based on audio availability
+ArrayType = np.ndarray if AUDIO_AVAILABLE else bytes
 
 from ..crypto import SecureRandom, MessageEncryption, KeyDerivation
 from ..crypto.double_ratchet import DoubleRatchet, DoubleRatchetManager
@@ -120,7 +124,7 @@ class VoiceFrame:
 
 @dataclass
 class CallSession:
-    """Secure voice call session."""
+    """Secure voice call session with advanced features."""
     call_id: str
     local_user_id: str
     remote_user_id: str
@@ -132,7 +136,7 @@ class CallSession:
     quality: CallQuality = CallQuality.MEDIUM
     codec: VoiceCodec = VoiceCodec.OPUS
     is_anonymous: bool = True
-    
+
     # Audio statistics
     frames_sent: int = 0
     frames_received: int = 0
@@ -140,6 +144,15 @@ class CallSession:
     bytes_received: int = 0
     packet_loss: float = 0.0
     latency_ms: float = 0.0
+
+    # Advanced features
+    adaptive_quality: bool = True
+    current_bitrate: int = 64000  # bits per second
+    target_latency: int = 150  # target latency in ms
+    jitter_buffer_size: int = 50  # jitter buffer in ms
+    fec_enabled: bool = True  # Forward Error Correction
+    silence_detection: bool = True
+    audio_enhancement: bool = True
     
     def update_stats(self, sent: bool, frame_size: int):
         """Update call statistics."""
@@ -164,8 +177,8 @@ class VoiceProcessor:
         self.noise_reducer = NoiseReducer(sample_rate)
         self.voice_obfuscator = VoiceObfuscator(sample_rate)
         
-    def process_outgoing_audio(self, audio_data: np.ndarray, 
-                             protect_voice_print: bool = True) -> np.ndarray:
+    def process_outgoing_audio(self, audio_data: ArrayType, 
+                             protect_voice_print: bool = True) -> ArrayType:
         """Process outgoing audio with privacy protections."""
         if not AUDIO_AVAILABLE:
             return audio_data
@@ -184,7 +197,7 @@ class VoiceProcessor:
             
         return protected_audio
     
-    def process_incoming_audio(self, audio_data: np.ndarray) -> np.ndarray:
+    def process_incoming_audio(self, audio_data: ArrayType) -> ArrayType:
         """Process incoming audio for playback."""
         if not AUDIO_AVAILABLE:
             return audio_data
@@ -203,8 +216,8 @@ class EchoCanceller:
         self.echo_filter = np.zeros(self.filter_length)
         self.reference_history = np.zeros(self.filter_length)
         
-    def cancel_echo(self, input_audio: np.ndarray, 
-                   reference_audio: Optional[np.ndarray] = None) -> np.ndarray:
+    def cancel_echo(self, input_audio: ArrayType, 
+                   reference_audio: Optional[ArrayType] = None) -> ArrayType:
         """Cancel acoustic echo from input audio."""
         if not AUDIO_AVAILABLE or reference_audio is None:
             return input_audio
@@ -236,7 +249,7 @@ class NoiseReducer:
         self.noise_floor = None
         self.smoothing_factor = 0.95
         
-    def reduce_noise(self, audio_data: np.ndarray) -> np.ndarray:
+    def reduce_noise(self, audio_data: ArrayType) -> ArrayType:
         """Reduce background noise from audio."""
         if not AUDIO_AVAILABLE:
             return audio_data
@@ -275,7 +288,7 @@ class VoiceObfuscator:
         self.pitch_shift_factor = 1.0
         self.formant_shift_factor = 1.0
         
-    def obfuscate_voice_print(self, audio_data: np.ndarray) -> np.ndarray:
+    def obfuscate_voice_print(self, audio_data: ArrayType) -> ArrayType:
         """Apply voice obfuscation to protect voice fingerprint."""
         if not AUDIO_AVAILABLE:
             return audio_data
@@ -288,7 +301,7 @@ class VoiceObfuscator:
         
         return formant_shifted
     
-    def _pitch_shift(self, audio: np.ndarray, factor: float) -> np.ndarray:
+    def _pitch_shift(self, audio: ArrayType, factor: float) -> ArrayType:
         """Shift pitch of audio by given factor."""
         # Simplified pitch shifting (in practice, use PSOLA or similar)
         if factor == 1.0:
@@ -299,7 +312,7 @@ class VoiceObfuscator:
         return np.interp(np.arange(len(audio)), indices, 
                         audio[np.minimum(indices.astype(int), len(audio)-1)])
     
-    def _formant_shift(self, audio: np.ndarray, factor: float) -> np.ndarray:
+    def _formant_shift(self, audio: ArrayType, factor: float) -> ArrayType:
         """Shift formants of audio."""
         # Simplified formant shifting
         if factor == 1.0:
@@ -338,8 +351,8 @@ class VoiceCallManager:
         # Active calls
         self.active_calls: Dict[str, CallSession] = {}
         
-        # Audio processing
-        self.voice_processor = VoiceProcessor()
+        # Audio processing (only if available)
+        self.voice_processor = VoiceProcessor() if AUDIO_AVAILABLE else None
         
         # Network callbacks
         self.send_callback: Optional[Callable] = None
@@ -362,18 +375,27 @@ class VoiceCallManager:
         self.call_state_callbacks.append(callback)
     
     async def initiate_call(self, remote_user_id: str, anonymous: bool = True,
-                          quality: CallQuality = CallQuality.MEDIUM) -> Optional[str]:
-        """Initiate a voice call to a remote user."""
+                           quality: CallQuality = CallQuality.MEDIUM,
+                           adaptive_quality: bool = True,
+                           target_latency: int = 150) -> Optional[str]:
+        """Initiate a voice call to a remote user with advanced features."""
         call_id = SecureRandom().generate_bytes(16).hex()
-        
-        # Create call session
+
+        # Select optimal codec based on quality
+        codec = self._select_optimal_codec(quality)
+
+        # Create call session with advanced features
         call_session = CallSession(
             call_id=call_id,
             local_user_id=self.user_id,
             remote_user_id=remote_user_id,
             state=CallState.INITIATING,
             quality=quality,
-            is_anonymous=anonymous
+            codec=codec,
+            is_anonymous=anonymous,
+            adaptive_quality=adaptive_quality,
+            target_latency=target_latency,
+            current_bitrate=self._get_bitrate_for_quality(quality)
         )
         
         try:
@@ -475,7 +497,7 @@ class VoiceCallManager:
             self._notify_call_state_change(call_id, CallState.FAILED)
             return False
     
-    async def send_voice_frame(self, call_id: str, audio_data: np.ndarray) -> bool:
+    async def send_voice_frame(self, call_id: str, audio_data: ArrayType) -> bool:
         """Send an encrypted voice frame."""
         if call_id not in self.active_calls:
             return False
@@ -486,9 +508,12 @@ class VoiceCallManager:
         
         try:
             # Process outgoing audio
-            processed_audio = self.voice_processor.process_outgoing_audio(
-                audio_data, call_session.is_anonymous
-            )
+            if self.voice_processor:
+                processed_audio = self.voice_processor.process_outgoing_audio(
+                    audio_data, call_session.is_anonymous
+                )
+            else:
+                processed_audio = audio_data  # Fallback when audio processing unavailable
             
             # Convert to bytes
             audio_bytes = processed_audio.astype(np.int16).tobytes()
@@ -524,7 +549,7 @@ class VoiceCallManager:
         
         return False
     
-    async def handle_incoming_voice_frame(self, call_id: str, frame_data: bytes) -> Optional[np.ndarray]:
+    async def handle_incoming_voice_frame(self, call_id: str, frame_data: bytes) -> Optional[ArrayType]:
         """Handle an incoming encrypted voice frame."""
         if call_id not in self.active_calls:
             return None
@@ -550,7 +575,10 @@ class VoiceCallManager:
                 audio_data = np.frombuffer(audio_bytes, dtype=np.int16).astype(np.float32)
                 
                 # Process incoming audio
-                processed_audio = self.voice_processor.process_incoming_audio(audio_data)
+                if self.voice_processor:
+                    processed_audio = self.voice_processor.process_incoming_audio(audio_data)
+                else:
+                    processed_audio = audio_data  # Fallback when audio processing unavailable
                 
                 # Update statistics
                 call_session.update_stats(False, len(frame_data))
@@ -709,13 +737,160 @@ class VoiceCallManager:
         """Get list of all active call IDs."""
         return list(self.active_calls.keys())
 
+    def _select_optimal_codec(self, quality: CallQuality) -> VoiceCodec:
+        """Select the optimal codec based on quality requirements."""
+        codec_mapping = {
+            CallQuality.LOW: VoiceCodec.G711_ULAW,  # Lower bandwidth
+            CallQuality.MEDIUM: VoiceCodec.SPEEX,   # Balanced
+            CallQuality.HIGH: VoiceCodec.OPUS,      # High quality
+            CallQuality.ULTRA: VoiceCodec.OPUS      # Ultra quality
+        }
+        return codec_mapping.get(quality, VoiceCodec.OPUS)
+
+    def _get_bitrate_for_quality(self, quality: CallQuality) -> int:
+        """Get target bitrate for quality level."""
+        bitrate_mapping = {
+            CallQuality.LOW: 32000,    # 32 kbps
+            CallQuality.MEDIUM: 64000, # 64 kbps
+            CallQuality.HIGH: 128000,  # 128 kbps
+            CallQuality.ULTRA: 256000  # 256 kbps
+        }
+        return bitrate_mapping.get(quality, 64000)
+
+    async def adjust_call_quality(self, call_id: str, new_quality: CallQuality) -> bool:
+        """Dynamically adjust call quality during active call."""
+        if call_id not in self.active_calls:
+            return False
+
+        call_session = self.active_calls[call_id]
+        if call_session.state != CallState.ACTIVE:
+            return False
+
+        try:
+            # Select new codec
+            new_codec = self._select_optimal_codec(new_quality)
+            new_bitrate = self._get_bitrate_for_quality(new_quality)
+
+            # Send quality change notification
+            quality_change = {
+                'call_id': call_id,
+                'new_quality': new_quality.value,
+                'new_codec': new_codec.value,
+                'new_bitrate': new_bitrate,
+                'timestamp': datetime.now().isoformat()
+            }
+
+            await self._send_call_message(call_session, "QUALITY_CHANGE", quality_change)
+
+            # Update session parameters
+            call_session.quality = new_quality
+            call_session.codec = new_codec
+            call_session.current_bitrate = new_bitrate
+
+            return True
+
+        except Exception:
+            return False
+
+    async def adapt_quality_based_on_conditions(self, call_id: str) -> None:
+        """Automatically adapt call quality based on network conditions."""
+        if call_id not in self.active_calls:
+            return
+
+        call_session = self.active_calls[call_id]
+        if not call_session.adaptive_quality or call_session.state != CallState.ACTIVE:
+            return
+
+        # Analyze current conditions
+        current_packet_loss = call_session.packet_loss
+        current_latency = call_session.latency_ms
+
+        # Determine optimal quality
+        if current_packet_loss > 0.1 or current_latency > 300:  # Poor conditions
+            target_quality = CallQuality.LOW
+        elif current_packet_loss > 0.05 or current_latency > 200:  # Moderate conditions
+            target_quality = CallQuality.MEDIUM
+        elif current_packet_loss < 0.02 and current_latency < 150:  # Good conditions
+            target_quality = CallQuality.HIGH
+        else:
+            target_quality = call_session.quality  # Maintain current
+
+        # Adjust if needed
+        if target_quality != call_session.quality:
+            await self.adjust_call_quality(call_id, target_quality)
+
+    def enable_silence_detection(self, call_id: str, enabled: bool = True) -> bool:
+        """Enable or disable silence detection for bandwidth optimization."""
+        if call_id not in self.active_calls:
+            return False
+
+        call_session = self.active_calls[call_id]
+        call_session.silence_detection = enabled
+        return True
+
+    def enable_audio_enhancement(self, call_id: str, enabled: bool = True) -> bool:
+        """Enable or disable audio enhancement features."""
+        if call_id not in self.active_calls:
+            return False
+
+        call_session = self.active_calls[call_id]
+        call_session.audio_enhancement = enabled
+        return True
+
+    def set_jitter_buffer_size(self, call_id: str, size_ms: int) -> bool:
+        """Set jitter buffer size for latency optimization."""
+        if call_id not in self.active_calls or not (20 <= size_ms <= 200):
+            return False
+
+        call_session = self.active_calls[call_id]
+        call_session.jitter_buffer_size = size_ms
+        return True
+
+    def get_call_quality_metrics(self, call_id: str) -> Optional[Dict[str, Any]]:
+        """Get detailed quality metrics for a call."""
+        if call_id not in self.active_calls:
+            return None
+
+        call_session = self.active_calls[call_id]
+
+        # Calculate additional metrics
+        duration = 0
+        if call_session.started_at:
+            if call_session.ended_at:
+                duration = (call_session.ended_at - call_session.started_at).total_seconds()
+            else:
+                duration = (datetime.now() - call_session.started_at).total_seconds()
+
+        avg_bitrate_sent = 0
+        avg_bitrate_received = 0
+        if duration > 0:
+            avg_bitrate_sent = (call_session.bytes_sent * 8) / duration  # bits per second
+            avg_bitrate_received = (call_session.bytes_received * 8) / duration
+
+        return {
+            'call_id': call_id,
+            'quality': call_session.quality.value,
+            'codec': call_session.codec.value,
+            'current_bitrate': call_session.current_bitrate,
+            'avg_bitrate_sent': avg_bitrate_sent,
+            'avg_bitrate_received': avg_bitrate_received,
+            'packet_loss_percent': call_session.packet_loss * 100,
+            'latency_ms': call_session.latency_ms,
+            'jitter_buffer_ms': call_session.jitter_buffer_size,
+            'adaptive_quality': call_session.adaptive_quality,
+            'silence_detection': call_session.silence_detection,
+            'audio_enhancement': call_session.audio_enhancement,
+            'fec_enabled': call_session.fec_enabled,
+            'target_latency_ms': call_session.target_latency
+        }
+
 
 # Audio codec simulation (placeholder for real audio processing)
 class AudioCodec:
     """Placeholder audio codec for voice compression/decompression."""
     
     @staticmethod
-    def encode(audio_data: np.ndarray, codec: VoiceCodec, quality: CallQuality) -> bytes:
+    def encode(audio_data: ArrayType, codec: VoiceCodec, quality: CallQuality) -> bytes:
         """Encode audio data with specified codec and quality."""
         if not AUDIO_AVAILABLE:
             return audio_data.tobytes() if hasattr(audio_data, 'tobytes') else audio_data
@@ -734,7 +909,7 @@ class AudioCodec:
         return compressed_audio.astype(np.int16).tobytes()
     
     @staticmethod
-    def decode(encoded_data: bytes, codec: VoiceCodec, quality: CallQuality) -> np.ndarray:
+    def decode(encoded_data: bytes, codec: VoiceCodec, quality: CallQuality) -> ArrayType:
         """Decode audio data with specified codec and quality."""
         if not AUDIO_AVAILABLE:
             return np.frombuffer(encoded_data, dtype=np.uint8)

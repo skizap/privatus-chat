@@ -7,6 +7,7 @@ NAT traversal, and message protocols.
 """
 
 import pytest
+import pytest_asyncio
 import asyncio
 import time
 from unittest.mock import Mock, patch
@@ -21,7 +22,7 @@ from src.network.p2p_node import P2PNode
 class TestKademliaDHT:
     """Test Kademlia DHT implementation"""
     
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def dht_node(self):
         """Create a DHT node for testing"""
         node = KademliaDHT(bind_port=0)
@@ -75,7 +76,7 @@ class TestKademliaDHT:
 class TestConnectionManager:
     """Test connection manager"""
     
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def connection_manager(self):
         """Create connection manager for testing"""
         manager = ConnectionManager()
@@ -234,17 +235,17 @@ class TestMessageProtocol:
 class TestPeerDiscovery:
     """Test peer discovery system"""
     
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def peer_discovery(self):
         """Create peer discovery for testing"""
         dht = KademliaDHT(bind_port=0)
         await dht.start()
-        
+
         discovery = PeerDiscovery(b"test_node", dht)
         await discovery.start()
-        
+
         yield discovery
-        
+
         await discovery.stop()
         await dht.stop()
     
@@ -296,10 +297,10 @@ class TestPeerDiscovery:
 class TestP2PNode:
     """Test main P2P node"""
     
-    @pytest.fixture
+    @pytest_asyncio.fixture
     async def p2p_node(self):
         """Create P2P node for testing"""
-        node = P2PNode(bind_port=0)
+        node = P2PNode(bind_port=8000)
         await node.start()
         yield node
         await node.stop()
@@ -347,8 +348,8 @@ class TestNetworkingIntegration:
     async def test_two_node_communication(self):
         """Test communication between two P2P nodes"""
         # Create two nodes
-        node1 = P2PNode(bind_port=0)
-        node2 = P2PNode(bind_port=0)
+        node1 = P2PNode(bind_port=8001)
+        node2 = P2PNode(bind_port=8002)
         
         try:
             # Start both nodes
@@ -392,7 +393,7 @@ class TestNetworkingIntegration:
     @pytest.mark.asyncio
     async def test_network_resilience(self):
         """Test network resilience and recovery"""
-        node = P2PNode(bind_port=0)
+        node = P2PNode(bind_port=8003)
         
         try:
             await node.start()

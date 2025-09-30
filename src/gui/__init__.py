@@ -21,7 +21,7 @@ from .components import (
     PrivacyControlPanel,
     MessageWidget
 )
-from .gui_app import PrivatusChatGUI
+from .gui_app import PrivatusChatGUI, run_gui_application
 from .themes import ThemeManager, theme_manager, apply_theme
 from .privacy_dashboard import PrivacyDashboard, CircuitVisualization, TrafficMetrics
 from .settings_dialog import SettingsDialog
@@ -29,8 +29,9 @@ from .settings_dialog import SettingsDialog
 __all__ = [
     'MainChatWindow',
     'PrivatusChatGUI',
+    'run_gui_application',
     'SecurityIndicator',
-    'ContactListWidget', 
+    'ContactListWidget',
     'ChatAreaWidget',
     'MessageInputWidget',
     'PrivacyControlPanel',
@@ -39,7 +40,7 @@ __all__ = [
     'theme_manager',
     'apply_theme',
     'PrivacyDashboard',
-    'CircuitVisualization', 
+    'CircuitVisualization',
     'TrafficMetrics',
     'SettingsDialog'
-] 
+]

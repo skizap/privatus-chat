@@ -27,9 +27,11 @@ logger = logging.getLogger(__name__)
 class TrafficPattern(Enum):
     """Types of traffic patterns to generate"""
     CONSTANT_RATE = "constant_rate"
-    BURST = "burst" 
+    BURST = "burst"
     RANDOM = "random"
     MIMICRY = "mimicry"
+    BURST_DISRUPTION = "burst_disruption"  # New: Disrupt burst patterns
+    ADAPTIVE = "adaptive"  # New: Adapt to observed patterns
 
 @dataclass
 class TrafficEvent:
@@ -50,33 +52,53 @@ class MessagePadder:
         self.min_message_size = 128
         
     def pad_message(self, message: bytes) -> bytes:
-        """Pad message to next standard size"""
+        """Pad message to next standard size with length prefix"""
         current_size = len(message)
-        
+
         # Find the next padding size
         target_size = self.min_message_size
         for size in self.padding_sizes:
             if size >= current_size:
                 target_size = size
                 break
-        
+
         if target_size > self.max_padding_size:
             target_size = self.max_padding_size
-            
+
+        # Add length prefix (4 bytes)
+        length_prefix = current_size.to_bytes(4, 'big')
+
+        # Calculate total padding needed (including length prefix)
+        total_size_needed = 4 + target_size  # 4 for length + target message size
+        padding_needed = total_size_needed - (4 + current_size)
+
         # Add random padding
-        padding_needed = target_size - current_size
         if padding_needed > 0:
             padding = secrets.token_bytes(padding_needed)
-            return message + padding
-        
-        return message
+            return length_prefix + message + padding
+
+        return length_prefix + message
     
     def unpad_message(self, padded_message: bytes) -> bytes:
-        """Remove padding from message (simplified implementation)"""
-        # In a real implementation, we'd have padding markers
-        # For now, assume the original message length is encoded
-        # This is a placeholder for the actual unpadding logic
-        return padded_message
+        """Remove padding from message"""
+        if len(padded_message) < 4:
+            return padded_message
+
+        try:
+            # Extract original length from first 4 bytes
+            original_length = int.from_bytes(padded_message[:4], 'big')
+
+            # Validate length
+            if original_length < 0 or original_length > len(padded_message) - 4:
+                logger.warning("Invalid padding length detected")
+                return padded_message
+
+            # Return original message
+            return padded_message[4:4 + original_length]
+
+        except Exception as e:
+            logger.error(f"Failed to unpad message: {e}")
+            return padded_message
 
 class TimingObfuscator:
     """Handles timing obfuscation to break correlation patterns"""
@@ -137,13 +159,17 @@ class DummyTrafficGenerator:
             TrafficPattern.CONSTANT_RATE: self._constant_rate_pattern,
             TrafficPattern.BURST: self._burst_pattern,
             TrafficPattern.RANDOM: self._random_pattern,
-            TrafficPattern.MIMICRY: self._mimicry_pattern
+            TrafficPattern.MIMICRY: self._mimicry_pattern,
+            TrafficPattern.BURST_DISRUPTION: self._burst_disruption_pattern,
+            TrafficPattern.ADAPTIVE: self._adaptive_pattern
         }
         
         # Configuration
         self.base_rate = 0.1  # Messages per second
         self.burst_probability = 0.05  # 5% chance of burst
         self.burst_size = (3, 10)  # 3-10 messages per burst
+        self.disruption_interval = 30  # Disrupt patterns every 30 seconds
+        self.adaptive_window = 300  # 5-minute window for pattern analysis
         
         # Statistics
         self.dummy_messages_sent = 0
@@ -216,19 +242,81 @@ class DummyTrafficGenerator:
         """Generate traffic that mimics real usage patterns"""
         # This would analyze real usage patterns and generate similar dummy traffic
         # For now, implement a simplified version
-        
+
         while self.running:
             # Simulate realistic patterns (more active during "day" hours)
             current_hour = time.localtime().tm_hour
-            
+
             if 8 <= current_hour <= 22:  # Active hours
                 activity_factor = 1.5
             else:  # Quiet hours
                 activity_factor = 0.3
-            
+
             interval = (1.0 / self.base_rate) / activity_factor
             await asyncio.sleep(interval)
-            
+
+            if self.running:
+                await self._send_dummy_message()
+
+    async def _burst_disruption_pattern(self):
+        """Generate traffic that disrupts burst patterns to confuse analysis"""
+        last_burst_time = 0
+
+        while self.running:
+            current_time = time.time()
+
+            # Check if we need to disrupt a potential burst pattern
+            if current_time - last_burst_time > self.disruption_interval:
+                # Generate a disruption burst at irregular intervals
+                disruption_size = secrets.randbelow(5) + 1  # 1-5 messages
+                logger.debug(f"Generating disruption burst of {disruption_size} messages")
+
+                for _ in range(disruption_size):
+                    if self.running:
+                        await self._send_dummy_message()
+                        await asyncio.sleep(0.2)  # Short delay between disruption messages
+
+                last_burst_time = current_time
+
+            # Normal random traffic
+            interval = 1.0 / (self.base_rate * 2)  # Higher rate for disruption
+            await asyncio.sleep(interval)
+
+            if self.running:
+                await self._send_dummy_message()
+
+    async def _adaptive_pattern(self):
+        """Generate traffic that adapts to observed patterns"""
+        while self.running:
+            # Analyze recent traffic patterns to adapt
+            current_time = time.time()
+            recent_events = [
+                event for event in self.traffic_callback.__self__.traffic_events
+                if current_time - event.timestamp < self.adaptive_window
+            ]
+
+            if len(recent_events) >= 10:
+                # Calculate adaptive parameters based on recent traffic
+                real_events = [e for e in recent_events if not e.is_dummy]
+                intervals = []
+
+                for i in range(1, len(real_events)):
+                    interval = real_events[i].timestamp - real_events[i-1].timestamp
+                    intervals.append(interval)
+
+                if intervals:
+                    avg_interval = statistics.mean(intervals)
+                    # Generate traffic that fills gaps in real traffic
+                    adaptive_rate = 1.0 / max(avg_interval * 0.5, 0.1)  # Fill half the gaps
+                    interval = 1.0 / adaptive_rate
+                else:
+                    interval = 1.0 / self.base_rate
+            else:
+                # Default to random pattern if insufficient data
+                interval = 1.0 / self.base_rate
+
+            await asyncio.sleep(interval)
+
             if self.running:
                 await self._send_dummy_message()
     

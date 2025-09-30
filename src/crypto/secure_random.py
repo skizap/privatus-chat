@@ -29,20 +29,22 @@ class SecureRandom:
     def generate_bytes(length: int) -> bytes:
         """
         Generate cryptographically secure random bytes.
-        
+
         Args:
             length: Number of random bytes to generate
-            
+
         Returns:
             bytes: Cryptographically secure random bytes
-            
+
         Raises:
-            ValueError: If length is not positive
+            ValueError: If length is not positive or exceeds reasonable limits
             OSError: If insufficient entropy is available
         """
-        if length <= 0:
-            raise ValueError("Length must be positive")
-            
+        if not isinstance(length, int) or length <= 0:
+            raise ValueError("Length must be a positive integer")
+        if length > 1024 * 1024:  # 1MB limit to prevent DoS
+            raise ValueError("Length exceeds maximum allowed size (1MB)")
+
         try:
             return secrets.token_bytes(length)
         except OSError as e:

@@ -405,5 +405,20 @@ await event_bus.emit('message_received', message_data)
 
 *This architecture is designed for security, privacy, and scalability. For implementation details, see the [API Documentation](api-reference.md).*
 
-*Last updated: December 2024*
-*Version: 1.0.0* 
+## Related Documentation
+
+### Feature Architecture Details
+- **[Voice Communication Architecture](../user/feature-voice-communication.md)**: Voice system design and implementation
+- **[File Transfer Architecture](../user/feature-file-transfer.md)**: File sharing system architecture
+- **[Performance Monitoring Architecture](../user/feature-performance-monitoring.md)**: Monitoring system design
+- **[Security Testing Architecture](../user/feature-security-testing.md)**: Security framework architecture
+
+### Supporting Documentation
+- **[Security Best Practices](../user/security-best-practices.md)**: Security implementation guidelines
+- **[User Guide](../user/user-guide.md)**: End-user feature documentation
+- **[Developer Guide](developer-guide.md)**: Development and contribution guidelines
+
+---
+
+*Last updated: January 2025*
+*Version: 1.0.0*

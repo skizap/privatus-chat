@@ -1,44 +1,94 @@
 # Privatus-chat Installation Guide
 
-Welcome to Privatus-chat, the secure and anonymous messaging platform that prioritizes your privacy. This guide will walk you through the installation process on Windows, macOS, and Linux.
+Welcome to Privatus-chat, the secure and anonymous messaging platform that prioritizes your privacy. This comprehensive guide covers installation across all supported platforms with enhanced deployment options.
 
 ## Table of Contents
 - [System Requirements](#system-requirements)
 - [Quick Install](#quick-install)
-- [Windows Installation](#windows-installation)
-- [macOS Installation](#macos-installation)
-- [Linux Installation](#linux-installation)
+- [Platform-Specific Installation](#platform-specific-installation)
+- [Advanced Installation Options](#advanced-installation-options)
 - [First-Time Setup](#first-time-setup)
 - [Troubleshooting](#troubleshooting)
 - [Verifying Installation](#verifying-installation)
+- [Deployment Information](#deployment-information)
 
 ## System Requirements
 
 ### Minimum Requirements
-- **Operating System**: Windows 10/11, macOS 10.14+, or Linux (Ubuntu 20.04+, Fedora 34+, Debian 11+)
-- **RAM**: 4 GB (8 GB recommended)
-- **Storage**: 500 MB available space
-- **Network**: Broadband internet connection
-- **Python**: 3.8 or higher (if installing from source)
+- **Operating System**:
+  - Windows 10 version 19041+ / Windows 11
+  - macOS 10.15 (Catalina) or later
+  - Linux: Ubuntu 20.04+, Fedora 37+, Debian 11+, or compatible distributions
+- **Processor**: 64-bit (x86-64) or ARM64 processor
+- **RAM**: 512 MB (1 GB recommended for enhanced features)
+- **Storage**: 200 MB available space (500 MB recommended)
+- **Network**: Internet connection for initial setup and P2P communication
+- **Python**: 3.11 or higher (automatically included in packages)
 
 ### Recommended Requirements
-- **RAM**: 8 GB or more
-- **Storage**: 2 GB available space
-- **Network**: High-speed broadband for optimal performance
+- **RAM**: 1 GB or more for optimal performance
+- **Storage**: 500 MB available space for full feature set
+- **Network**: Broadband internet for voice/video calls and file transfer
 - **Display**: 1280x720 resolution or higher
+- **Audio**: Microphone and speakers for voice communication
+- **Camera**: Webcam for video calls (optional)
+
+### Enhanced Features Requirements
+- **File Transfer**: Additional storage for cached files
+- **Voice Calls**: Microphone and audio drivers
+- **Video Calls**: Webcam and compatible video drivers
+- **Performance Monitoring**: Additional RAM for detailed metrics
+- **Security Testing**: Compatible security frameworks
 
 ## Quick Install
 
 ### For Most Users (Pre-built Packages)
 
-**Windows**: Download and run `privatus-chat-setup.msi`
+Choose your platform for detailed installation instructions:
 
-**macOS**: Download and open `privatus-chat.dmg`, drag to Applications
+**🪟 Windows**: [MSI Installer Guide](installation-guide-windows.md)
+- Download and run `privatus-chat-setup.msi`
+- Includes automatic Windows integration and firewall configuration
+- Supports both x64 and ARM64 architectures
 
-**Linux**: Download and install the appropriate package:
-- Ubuntu/Debian: `sudo dpkg -i privatus-chat.deb`
-- Fedora: `sudo rpm -i privatus-chat.rpm`
-- Any Linux: Use the AppImage (portable, no installation needed)
+**🍎 macOS**: [DMG Installer Guide](installation-guide-macos.md)
+- Download and open `privatus-chat.dmg`, drag to Applications
+- Universal binary supporting Intel and Apple Silicon Macs
+- Includes proper macOS security entitlements and privacy permissions
+
+**🐧 Linux**: [Multi-Distribution Guide](installation-guide-linux.md)
+- **DEB Package**: `sudo dpkg -i privatus-chat.deb` (Ubuntu/Debian)
+- **RPM Package**: `sudo rpm -i privatus-chat.rpm` (Fedora/RHEL)
+- **AppImage**: Portable, no installation needed
+- **Snap Package**: Available for modern distributions
+
+### Advanced Installation Options
+
+**🐳 Docker Deployment**:
+```bash
+# Pull the latest image
+docker pull privatus-chat/privatus-chat:latest
+
+# Run with Docker Compose
+docker-compose -f deployment/docker-compose.yml up
+```
+
+**🔧 From Source**:
+```bash
+git clone https://github.com/privatus-chat/privatus-chat.git
+cd privatus-chat
+pip install -r requirements.txt
+python launch_gui.py
+```
+
+**📦 Development Build**:
+```bash
+# Enhanced build with all features
+python deployment/build.py --enable-feature file_transfer voice_calls performance_monitoring
+
+# Cross-platform deployment
+python deployment/deploy.py --cross-platform --version 3.0.0
+```
 
 ## Windows Installation
 
@@ -253,46 +303,107 @@ When you launch Privatus-chat for the first time:
    - Review your settings
    - Click "Start Using Privatus-chat"
 
+## Platform-Specific Installation
+
+For detailed installation instructions for each platform, please refer to the dedicated guides:
+
+### Windows Installation
+- **[Complete Windows Guide](installation-guide-windows.md)**
+- MSI installer with Windows integration
+- Portable ZIP option available
+- Automatic firewall and security configuration
+- Desktop and Start Menu integration
+
+### macOS Installation
+- **[Complete macOS Guide](installation-guide-macos.md)**
+- DMG installer with drag-and-drop installation
+- Universal binary for Intel and Apple Silicon
+- Proper macOS security entitlements
+- Privacy permissions and Gatekeeper support
+
+### Linux Installation
+- **[Complete Linux Guide](installation-guide-linux.md)**
+- Multi-distribution support (DEB, RPM, AppImage, Snap)
+- Desktop environment integration
+- Package manager integration
+- System service support
+
+## Advanced Installation Options
+
+### Docker Deployment
+Privatus-chat provides enhanced Docker support with multi-stage builds:
+
+```bash
+# Basic deployment
+docker run -d --name privatus-chat \
+  -p 8000-9000:8000-9000 \
+  -v privatus_data:/app/data \
+  privatus-chat/privatus-chat:latest
+
+# Development environment
+docker run -d --name privatus-dev \
+  -p 8001:8000 \
+  -v $(pwd):/app \
+  privatus-chat/privatus-chat:development
+
+# Production with Docker Compose
+docker-compose -f deployment/docker-compose.yml up -d
+```
+
+### Development Build
+For developers and advanced users:
+
+```bash
+# Enhanced build with all features
+python deployment/build.py \
+  --enable-feature file_transfer voice_calls performance_monitoring security_testing \
+  --platform all
+
+# Cross-platform deployment
+python deployment/deploy.py \
+  --cross-platform \
+  --version 3.0.0 \
+  --github --docker --local
+
+# Release management
+python deployment/release_manager.py \
+  --full-release \
+  --version-type minor
+```
+
 ## Troubleshooting
+
+For comprehensive troubleshooting information, see the **[Deployment Troubleshooting Guide](deployment-troubleshooting.md)**.
 
 ### Common Issues
 
 **Application Won't Start**
 - Ensure system requirements are met
-- Check antivirus isn't blocking the application
-- Try running as administrator (Windows) or with sudo (Linux)
+- Check antivirus/security software isn't blocking
+- Verify all dependencies are installed
+- Check application logs for error details
 
 **Network Connection Issues**
-- Check firewall settings
-- Ensure ports 9001-9003 are not blocked
-- Try disabling VPN temporarily
-- Check proxy settings if applicable
+- Verify firewall settings and port accessibility (8000-9000)
+- Check network configuration and proxy settings
+- Test with VPN disabled temporarily
+- Verify P2P connectivity
 
 **Installation Errors**
-
-*Windows:*
-- Run installer as Administrator
-- Disable antivirus temporarily during installation
-- Check Windows Event Viewer for detailed errors
-
-*macOS:*
-- Ensure macOS version is 10.14 or higher
-- Check Security & Privacy settings
-- Try installing from Terminal with verbose logging
-
-*Linux:*
-- Ensure all dependencies are installed
-- Check system logs: `journalctl -xe`
-- Try installing with `--verbose` flag
+- Run installer with administrator/root privileges
+- Temporarily disable antivirus during installation
+- Check system logs for detailed error information
+- Ensure sufficient disk space is available
 
 ### Getting Help
 
 If you encounter issues:
 
-1. Check the [FAQ](faq.md)
-2. Search [existing issues](https://github.com/privatus-chat/issues)
-3. Join our [community chat](https://privatus-chat.org/community)
-4. Create a [new issue](https://github.com/privatus-chat/issues/new)
+1. **[Deployment Troubleshooting Guide](deployment-troubleshooting.md)**
+2. **[FAQ](faq.md)**
+3. Search [existing GitHub issues](https://github.com/privatus-chat/privatus-chat/issues)
+4. [GitHub Discussions](https://github.com/privatus-chat/privatus-chat/discussions)
+5. Create a [new issue](https://github.com/privatus-chat/privatus-chat/issues/new)
 
 ## Verifying Installation
 
@@ -325,13 +436,91 @@ After installation, verify everything is working:
 3. Run connection test: Settings → Network → Test Connection
 4. Verify encryption: Settings → Security → Run Self-Test
 
+## Deployment Information
+
+### Enhanced Deployment Features
+
+Privatus-chat v3.0.0 includes comprehensive deployment infrastructure:
+
+#### Cross-Platform Packages
+- **Windows**: MSI installer with Windows integration
+- **macOS**: DMG installer with universal binary support
+- **Linux**: DEB, RPM, AppImage, and Snap packages
+- **Docker**: Multi-stage builds with development/production variants
+
+#### Advanced Build System
+- **Feature Support**: File transfer, voice calls, performance monitoring, security testing
+- **Environment-Based Configuration**: Development, testing, and production environments
+- **Automated Testing**: Comprehensive CI/CD pipeline with quality gates
+- **Security Hardening**: Code signing, dependency verification, and security scanning
+
+#### Deployment Automation
+- **GitHub Actions**: Complete CI/CD workflows
+- **Release Management**: Automated versioning and changelog generation
+- **Multi-Platform Deployment**: Simultaneous deployment to all platforms
+- **Rollback Support**: Automated rollback capabilities
+
+### For Developers
+
+#### Building from Source
+```bash
+# Clone repository
+git clone https://github.com/privatus-chat/privatus-chat.git
+cd privatus-chat
+
+# Enhanced build with features
+python deployment/build.py \
+  --enable-feature file_transfer voice_calls performance_monitoring \
+  --platform all
+
+# Cross-platform deployment
+python deployment/deploy.py \
+  --cross-platform \
+  --github --docker --local
+```
+
+#### Development Environment
+```bash
+# Set up development environment
+python deployment/build.py --platform linux --skip-tests
+
+# Run with debug features
+PRIVATUS_LOG_LEVEL=DEBUG python launch_gui.py
+```
+
+#### Contributing
+- See [Developer Guide](docs/developer/developer-guide.md)
+- Check [Contributing Guidelines](CONTRIBUTING.md)
+- Review [Development Plan](docs/DEVELOPMENT_PLAN.md)
+
 ## Next Steps
 
-- Read the [User Guide](user-guide.md) to learn about features
-- Review [Security Best Practices](security-best-practices.md)
-- Join the [Privatus-chat community](https://privatus-chat.org/community)
+- **[User Guide](user-guide.md)**: Learn about Privatus-chat features
+- **[Security Best Practices](security-best-practices.md)**: Secure your installation
+- **[Performance Monitoring Guide](feature-performance-monitoring.md)**: Optimize performance
+- **[Security Testing Guide](feature-security-testing.md)**: Use security features
+- **[Community Resources](https://github.com/privatus-chat/privatus-chat/discussions)**: Get help and contribute
+
+### Enhanced Features Documentation
+- **[File Transfer](feature-file-transfer.md)**: Secure file sharing capabilities
+- **[Voice Communication](feature-voice-communication.md)**: Voice and video calls
+- **[Performance Monitoring](feature-performance-monitoring.md)**: Monitor and optimize performance
+- **[Security Testing](feature-security-testing.md)**: Built-in security testing tools
 
 ---
 
-*Last updated: December 2024*
-*Version: 1.0.0* 
+## Support and Community
+
+### Getting Help
+- **[FAQ](faq.md)**: Frequently asked questions
+- **[GitHub Issues](https://github.com/privatus-chat/privatus-chat/issues)**: Report bugs and request features
+- **[GitHub Discussions](https://github.com/privatus-chat/privatus-chat/discussions)**: Community discussions
+- **[Security Issues](SECURITY.md)**: Report security vulnerabilities
+
+### Development Resources
+- **[API Reference](docs/developer/api-reference.md)**: Developer API documentation
+- **[Architecture Guide](docs/developer/architecture.md)**: System architecture overview
+- **[Development Plan](docs/DEVELOPMENT_PLAN.md)**: Current and future development roadmap
+
+*Last updated: September 2024*
+*Privatus-chat v3.0.0 - Enhanced Deployment Edition*

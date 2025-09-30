@@ -1,0 +1,167 @@
+# Multi-stage Dockerfile for Privatus-chat
+# Supports multiple architectures and optimized builds
+
+# Build stage
+FROM python:3.11-slim as builder
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PIP_NO_CACHE_DIR=1
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    libssl-dev \
+    libffi-dev \
+    libsqlite3-dev \
+    pkg-config \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create app directory
+WORKDIR /app
+
+# Copy requirements first for better caching
+COPY requirements.txt requirements-dev.txt ./
+
+# Install Python dependencies
+RUN pip install --no-cache-dir --user -r requirements.txt
+
+# Production stage
+FROM python:3.11-slim as production
+
+# Set environment variables
+ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONPATH=/app
+ENV PRIVATUS_DATA_DIR=/app/data
+
+# Install runtime dependencies only
+RUN apt-get update && apt-get install -y \
+    libssl3 \
+    libffi8 \
+    libsqlite3-0 \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create non-root user
+RUN groupadd -r privatus && useradd -r -g privatus privatus
+
+# Create app directory
+WORKDIR /app
+
+# Copy installed packages from builder
+COPY --from=builder /root/.local /home/privatus/.local
+
+# Copy application code
+COPY src/ ./src/
+COPY launch_gui.py ./
+COPY pyproject.toml ./
+COPY README.md ./
+
+# Create data directory
+RUN mkdir -p /app/data && chown -R privatus:privatus /app
+
+# Switch to non-root user
+USER privatus
+
+# Expose port for P2P networking
+EXPOSE 8000-9000
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python -c "import sys; sys.path.append('.'); from src.main import main; print('Health check passed')" || exit 1
+
+# Default command
+CMD ["python", "launch_gui.py"]
+
+# Development stage
+FROM production as development
+
+# Switch back to root for development
+USER root
+
+# Install development dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    vim \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy development requirements
+COPY requirements-dev.txt ./
+RUN pip install --no-cache-dir --user -r requirements-dev.txt
+
+# Switch back to privatus user
+USER privatus
+
+# Development command with auto-reload
+CMD ["python", "-m", "uvicorn", "src.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
+
+# Testing stage
+FROM production as testing
+
+# Install testing dependencies
+USER root
+COPY requirements-dev.txt ./
+RUN pip install --no-cache-dir --user -r requirements-dev.txt
+USER privatus
+
+# Copy test files
+COPY tests/ ./tests/
+
+# Testing command
+CMD ["python", "-m", "pytest", "tests/", "-v", "--cov=src"]
+
+# Security scanning stage
+FROM production as security-scan
+
+# Install security tools
+USER root
+RUN apt-get update && apt-get install -y \
+    clamav \
+    rkhunter \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy security scanning scripts
+COPY deployment/security_scan.py /usr/local/bin/
+RUN chmod +x /usr/local/bin/security_scan.py
+
+USER privatus
+
+# Security scanning command
+CMD ["security_scan.py"]
+
+# Documentation build stage
+FROM python:3.11-slim as docs-builder
+
+# Install documentation tools
+RUN apt-get update && apt-get install -y \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install documentation dependencies
+RUN pip install --no-cache-dir \
+    sphinx \
+    sphinx-rtd-theme \
+    myst-parser
+
+# Copy documentation files
+WORKDIR /docs
+COPY docs/ ./docs/
+COPY README.md ./
+
+# Build documentation
+RUN sphinx-build -b html docs/ _build/html
+
+# Final documentation image
+FROM nginx:alpine as documentation
+
+# Copy built documentation
+COPY --from=docs-builder /docs/_build/html /usr/share/nginx/html
+
+# Expose documentation port
+EXPOSE 80
+
+# Documentation server command
+CMD ["nginx", "-g", "daemon off;"]

@@ -1,0 +1,309 @@
+{
+  "platform": "linux",
+  "distribution": "multi",
+  "architecture": "x64",
+  "version": "3.0.0",
+  "build_date": "2024-09-30T00:00:00Z",
+
+  "packages": {
+    "deb": {
+      "enabled": true,
+      "output_name": "privatus-chat_3.0.0_amd64.deb",
+      "package_name": "privatus-chat",
+      "maintainer": "Privatus-chat Project <info@privatus-chat.org>",
+      "homepage": "https://github.com/privatus-chat/privatus-chat",
+      "section": "net",
+      "priority": "optional",
+      "architecture": "amd64",
+      "depends": [
+        "python3 (>= 3.8)",
+        "python3-pyqt6",
+        "python3-cryptography",
+        "python3-noiseprotocol",
+        "libssl-dev",
+        "libffi-dev"
+      ],
+      "recommends": [
+        "python3-pip",
+        "python3-venv"
+      ],
+      "suggests": [
+        "tor",
+        "i2p"
+      ],
+      "description": "Secure Anonymous Chat Application",
+      "long_description": "Privatus-chat is a secure, anonymous messaging application that provides end-to-end encryption, onion routing, and advanced privacy features for secure communication."
+    },
+
+    "rpm": {
+      "enabled": true,
+      "output_name": "privatus-chat-3.0.0-1.x86_64.rpm",
+      "package_name": "privatus-chat",
+      "version": "3.0.0",
+      "release": "1",
+      "summary": "Secure Anonymous Chat Application",
+      "license": "GPL-3.0",
+      "url": "https://github.com/privatus-chat/privatus-chat",
+      "group": "Applications/Communications",
+      "requires": [
+        "python3 >= 3.8",
+        "python3-pyqt6",
+        "openssl-devel",
+        "libffi-devel"
+      ],
+      "description": "Privatus-chat is a secure, anonymous messaging application that provides end-to-end encryption, onion routing, and advanced privacy features."
+    },
+
+    "appimage": {
+      "enabled": true,
+      "output_name": "privatus-chat-3.0.0-x86_64.AppImage",
+      "appdir_name": "privatus-chat.AppDir",
+      "runtime": "runtime-x86_64",
+      "runtime_version": "continuous"
+    },
+
+    "snap": {
+      "enabled": false,
+      "output_name": "privatus-chat_3.0.0_amd64.snap",
+      "snap_name": "privatus-chat",
+      "confinement": "strict",
+      "grade": "stable",
+      "summary": "Secure Anonymous Chat Application",
+      "description": "Privatus-chat is a secure, anonymous messaging application that provides end-to-end encryption, onion routing, and advanced privacy features."
+    }
+  },
+
+  "application": {
+    "name": "privatus-chat",
+    "display_name": "Privatus-chat",
+    "description": "Secure Anonymous Chat Application",
+    "version": "3.0.0",
+    "homepage": "https://github.com/privatus-chat/privatus-chat",
+    "bug_tracker": "https://github.com/privatus-chat/privatus-chat/issues",
+    "help_url": "https://github.com/privatus-chat/privatus-chat/blob/main/docs/user/user-guide.md"
+  },
+
+  "installation": {
+    "prefix": "/usr",
+    "bin_dir": "/usr/bin",
+    "data_dir": "/usr/share/privatus-chat",
+    "config_dir": "/etc/privatus-chat",
+    "log_dir": "/var/log/privatus-chat",
+    "user_data_dir": "~/.config/privatus-chat",
+    "user_cache_dir": "~/.cache/privatus-chat",
+    "create_user": false,
+    "user_name": "privatus",
+    "user_group": "privatus"
+  },
+
+  "desktop_integration": {
+    "desktop_file": {
+      "enabled": true,
+      "name": "Privatus-chat",
+      "comment": "Secure Anonymous Chat Application",
+      "categories": ["Network", "Chat", "Security"],
+      "keywords": ["chat", "messaging", "secure", "anonymous", "privacy", "encryption"],
+      "mime_types": ["x-scheme-handler/privatus"],
+      "startup_wm_class": "Privatus-chat",
+      "terminal": false,
+      "type": "Application",
+      "version": "1.0"
+    },
+
+    "icon": {
+      "enabled": true,
+      "theme_icon": "privatus-chat",
+      "sizes": [16, 32, 48, 64, 128, 256, 512],
+      "mime_type": "image/png"
+    },
+
+    "mime_types": {
+      "enabled": true,
+      "types": [
+        {
+          "type": "application/x-privatus-chat",
+          "comment": "Privatus-chat data file"
+        }
+      ]
+    },
+
+    "autostart": {
+      "enabled": false,
+      "desktop_file": "privatus-chat-autostart.desktop"
+    },
+
+    "systemd": {
+      "enabled": false,
+      "service_file": "privatus-chat.service",
+      "user_service": true
+    }
+  },
+
+  "permissions": {
+    "polkit": {
+      "enabled": false,
+      "policy_file": "org.privatus.chat.policy"
+    },
+
+    "udev": {
+      "enabled": false,
+      "rules_file": "99-privatus-chat.rules"
+    },
+
+    "apparmor": {
+      "enabled": false,
+      "profile": "privatus-chat"
+    }
+  },
+
+  "features": {
+    "file_transfer": true,
+    "voice_calls": true,
+    "performance_monitoring": true,
+    "security_testing": true,
+    "gui_enhancements": true,
+    "crypto_optimizations": true
+  },
+
+  "dependencies": {
+    "runtime": {
+      "python": "3.11",
+      "libraries": [
+        "libssl.so.1.1",
+        "libcrypto.so.1.1",
+        "libffi.so.7",
+        "libsqlite3.so.0"
+      ]
+    },
+
+    "build": {
+      "tools": [
+        "python3-dev",
+        "python3-pip",
+        "python3-venv",
+        "build-essential",
+        "pkg-config",
+        "libssl-dev",
+        "libffi-dev",
+        "libsqlite3-dev"
+      ]
+    },
+
+    "desktop": {
+      "qt": "6.0",
+      "gtk": "3.0",
+      "libraries": [
+        "libqt6gui6",
+        "libqt6widgets6",
+        "libgtk-3-0",
+        "libgconf-2-4",
+        "libnss3",
+        "libatk-bridge2.0-0",
+        "libdrm2",
+        "libxcomposite1",
+        "libxdamage1",
+        "libxrandr2",
+        "libgbm1",
+        "libxss1",
+        "libasound2"
+      ]
+    }
+  },
+
+  "environment": {
+    "production": {
+      "PRIVATUS_DATA_DIR": "/var/lib/privatus-chat",
+      "PRIVATUS_CONFIG_DIR": "/etc/privatus-chat",
+      "PRIVATUS_LOG_DIR": "/var/log/privatus-chat",
+      "PYTHONPATH": "/usr/lib/python3/dist-packages",
+      "LD_LIBRARY_PATH": "/usr/lib/privatus-chat/lib",
+      "XDG_DATA_DIRS": "/usr/share/privatus-chat:/usr/local/share:/usr/share",
+      "XDG_CONFIG_DIRS": "/etc/privatus-chat:/etc/xdg",
+      "XDG_CACHE_HOME": "~/.cache/privatus-chat",
+      "XDG_RUNTIME_DIR": "/run/user/%U"
+    },
+
+    "development": {
+      "PRIVATUS_DATA_DIR": "~/.local/share/privatus-chat",
+      "PRIVATUS_CONFIG_DIR": "~/.config/privatus-chat",
+      "PRIVATUS_LOG_DIR": "~/.cache/privatus-chat",
+      "PYTHONPATH": ".",
+      "LD_LIBRARY_PATH": "./lib",
+      "DEBUG": "1",
+      "LOG_LEVEL": "DEBUG"
+    }
+  },
+
+  "compatibility": {
+    "distributions": [
+      {
+        "name": "Ubuntu",
+        "versions": ["20.04", "22.04", "23.04", "23.10"],
+        "architectures": ["amd64", "arm64"]
+      },
+      {
+        "name": "Debian",
+        "versions": ["11", "12"],
+        "architectures": ["amd64", "arm64"]
+      },
+      {
+        "name": "Fedora",
+        "versions": ["37", "38", "39"],
+        "architectures": ["x86_64", "aarch64"]
+      },
+      {
+        "name": "CentOS",
+        "versions": ["8", "9"],
+        "architectures": ["x86_64", "aarch64"]
+      },
+      {
+        "name": "openSUSE",
+        "versions": ["15.4", "15.5"],
+        "architectures": ["x86_64", "aarch64"]
+      }
+    ],
+
+    "desktop_environments": [
+      "GNOME",
+      "KDE Plasma",
+      "Xfce",
+      "MATE",
+      "Cinnamon",
+      "LXQt",
+      "Budgie"
+    ],
+
+    "minimum_requirements": {
+      "memory": "512MB",
+      "disk_space": "200MB",
+      "cpu": "x86_64 or arm64"
+    }
+  },
+
+  "packaging": {
+    "compression": "xz",
+    "compression_level": "9",
+    "strip_binaries": true,
+    "optimize_binaries": true,
+    "create_debug_package": false,
+    "sign_package": false,
+    "gpg_key": null
+  },
+
+  "repositories": {
+    "launchpad": {
+      "enabled": false,
+      "ppa_name": "privatus-chat/privatus-chat"
+    },
+
+    "obs": {
+      "enabled": false,
+      "project": "privatus-chat"
+    },
+
+    "copr": {
+      "enabled": false,
+      "project": "privatus-chat"
+    }
+  }
+}
