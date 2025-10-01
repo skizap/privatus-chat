@@ -370,6 +370,475 @@ services:
       - privatus_data:/app/data
 ```
 
+## Advanced Installation Scenarios
+
+### Development Environment Setup
+
+#### Complete Development Stack
+```bash
+# Install development dependencies
+sudo apt-get install build-essential python3-dev libssl-dev libffi-dev
+sudo apt-get install postgresql postgresql-contrib redis-server
+sudo apt-get install nodejs npm  # For web assets
+sudo apt-get install docker.io docker-compose  # For containerized testing
+
+# Set up PostgreSQL for development
+sudo -u postgres createuser --interactive --pwprompt devuser
+sudo -u postgres createdb privatus_dev
+sudo -u postgres psql -c "ALTER USER devuser CREATEDB;"
+
+# Set up Redis for development
+sudo systemctl enable redis-server
+sudo systemctl start redis-server
+
+# Clone and setup Privatus-chat
+git clone https://github.com/privatus-chat/privatus-chat.git
+cd privatus-chat
+python3 -m venv venv-dev
+source venv-dev/bin/activate
+pip install -r requirements-dev.txt
+
+# Run development server
+python launch_gui.py --debug --reload
+```
+
+#### IDE Configuration
+```bash
+# VS Code extensions for Python development
+code --install-extension ms-python.python
+code --install-extension ms-python.black-formatter
+code --install-extension ms-python.isort
+code --install-extension ms-python.pylint
+code --install-extension ms-vscode.vscode-json
+
+# Create VS Code workspace settings
+mkdir -p .vscode
+cat > .vscode/settings.json << 'EOF'
+{
+    "python.defaultInterpreterPath": "./venv-dev/bin/python",
+    "python.linting.enabled": true,
+    "python.linting.pylintEnabled": true,
+    "python.formatting.provider": "black",
+    "python.testing.pytestEnabled": true,
+    "python.testing.pytestArgs": ["tests"],
+    "files.associations": {
+        "*.py": "python"
+    }
+}
+EOF
+```
+
+### CI/CD Pipeline Integration
+
+#### GitHub Actions Workflow
+```yaml
+# .github/workflows/ci-cd.yml
+name: Privatus-chat CI/CD
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [3.9, 3.10, 3.11]
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements-dev.txt
+
+    - name: Run linting
+      run: |
+        flake8 src tests --count --select=E9,F63,F7,F82 --show-source --statistics
+        black --check src tests
+        isort --check-only src tests
+
+    - name: Run tests
+      run: |
+        pytest tests/ -v --cov=src --cov-report=xml
+
+    - name: Upload coverage to Codecov
+      uses: codecov/codecov-action@v3
+      with:
+        file: ./coverage.xml
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Build application
+      run: |
+        python deployment/build.py --platform linux --enable-feature all
+
+    - name: Create Release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: v${{ github.run_number }}
+        release_name: Release v${{ github.run_number }}
+```
+
+#### Docker Build Integration
+```dockerfile
+# Dockerfile.ci
+FROM python:3.11-slim
+
+WORKDIR /app
+COPY requirements*.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+RUN python setup.py build_ext --inplace
+
+# Run tests
+RUN pytest tests/ -v
+
+# Build application
+RUN python deployment/build.py --platform linux
+```
+
+### Multi-Server Deployment
+
+#### Distributed Architecture Setup
+```bash
+#!/bin/bash
+# deploy_multi_server.sh
+
+# Configuration
+SERVERS=("app1.example.com" "app2.example.com" "app3.example.com")
+DB_SERVER="db.example.com"
+REDIS_SERVERS=("redis1.example.com" "redis2.example.com")
+
+# Deploy database server
+echo "Deploying database server on $DB_SERVER"
+ssh $DB_SERVER << 'EOF'
+sudo apt-get update
+sudo apt-get install postgresql-13 postgresql-contrib
+sudo systemctl enable postgresql
+sudo systemctl start postgresql
+
+# Configure PostgreSQL for replication
+sudo -u postgres psql -c "ALTER SYSTEM SET listen_addresses = '*';"
+sudo -u postgres psql -c "ALTER SYSTEM SET wal_level = replica;"
+sudo -u postgres psql -c "ALTER SYSTEM SET max_wal_senders = 3;"
+EOF
+
+# Deploy Redis cluster
+for redis_server in "${REDIS_SERVERS[@]}"; do
+    echo "Deploying Redis on $redis_server"
+    ssh $redis_server << 'EOF'
+    sudo apt-get install redis-server
+    sudo systemctl enable redis-server
+    sudo systemctl start redis-server
+    EOF
+done
+
+# Deploy application servers
+for server in "${SERVERS[@]}"; do
+    echo "Deploying application on $server"
+    ssh $server << 'EOF'
+    sudo apt-get update
+    sudo apt-get install python3.11 python3.11-pip nginx
+
+    # Setup application
+    sudo useradd -r -s /bin/false privatus
+    sudo mkdir -p /opt/privatus-chat/{app,data,config,logs}
+    sudo chown -R privatus:privatus /opt/privatus-chat
+
+    # Clone and install
+    git clone https://github.com/privatus-chat/privatus-chat.git /opt/privatus-chat/app
+    cd /opt/privatus-chat/app
+    pip3 install -r requirements.txt
+    EOF
+done
+```
+
+#### Load Balancer Configuration
+```nginx
+# /etc/nginx/sites-available/privatus-chat
+upstream privatus_backend {
+    least_conn;
+    server app1.example.com:8080 max_fails=3 fail_timeout=30s;
+    server app2.example.com:8080 max_fails=3 fail_timeout=30s;
+    server app3.example.com:8080 max_fails=3 fail_timeout=30s;
+}
+
+server {
+    listen 80;
+    server_name chat.example.com;
+
+    # Health checks
+    location /health {
+        proxy_pass http://privatus_backend/health;
+        proxy_connect_timeout 5s;
+        proxy_read_timeout 10s;
+    }
+
+    # API endpoints
+    location /api/ {
+        proxy_pass http://privatus_backend;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+
+    # WebSocket support for real-time features
+    location /ws/ {
+        proxy_pass http://privatus_backend;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection "upgrade";
+        proxy_set_header Host $host;
+        proxy_read_timeout 86400;
+    }
+}
+```
+
+### High Availability Configuration
+
+#### Database Clustering
+```bash
+#!/bin/bash
+# setup_db_cluster.sh
+
+MASTER_DB="db1.example.com"
+REPLICA_DBS=("db2.example.com" "db3.example.com")
+
+# Setup master database
+ssh $MASTER_DB << 'EOF'
+sudo -u postgres psql -c "ALTER SYSTEM SET listen_addresses = '*';"
+sudo -u postgres psql -c "ALTER SYSTEM SET wal_level = replica;"
+sudo -u postgres psql -c "ALTER SYSTEM SET max_wal_senders = 5;"
+sudo -u postgres psql -c "ALTER SYSTEM SET wal_keep_size = 1GB;"
+sudo systemctl restart postgresql
+EOF
+
+# Setup replica databases
+for replica in "${REPLICA_DBS[@]}"; do
+    echo "Setting up replica on $replica"
+    ssh $replica << 'EOF'
+    sudo apt-get install postgresql-13 postgresql-contrib
+
+    # Configure replica
+    sudo -u postgres psql -c "ALTER SYSTEM SET listen_addresses = '*';"
+    sudo -u postgres psql -c "ALTER SYSTEM SET hot_standby = on;"
+    sudo -u postgres psql -c "ALTER SYSTEM SET wal_level = replica;"
+
+    sudo systemctl enable postgresql
+    sudo systemctl start postgresql
+    EOF
+done
+```
+
+#### Application Clustering
+```ini
+# /etc/systemd/system/privatus-chat@.service
+[Unit]
+Description=Privatus-chat Application Server %i
+After=network.target postgresql.service redis.service
+Requires=postgresql.service redis.service
+
+[Service]
+Type=simple
+User=privatus
+WorkingDirectory=/opt/privatus-chat/app
+EnvironmentFile=/opt/privatus-chat/config/.env
+
+# Cluster configuration
+Environment=CLUSTER_NODE_ID=%i
+Environment=CLUSTER_NODES=app1,app2,app3
+
+ExecStart=/usr/bin/python3 -m gunicorn app:app \
+    --bind 0.0.0.0:8080 \
+    --workers 4 \
+    --worker-class eventlet \
+    --max-requests 1000 \
+    --keep-alive 2 \
+    --log-level info \
+    --access-logfile /opt/privatus-chat/logs/access.log \
+    --error-logfile /opt/privatus-chat/logs/error.log
+
+ExecReload=/bin/kill -s HUP $MAINPID
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+```
+
+### Enhanced Troubleshooting
+
+#### Debug Mode Operation
+```bash
+# Run with comprehensive debugging
+PRIVATUS_LOG_LEVEL=DEBUG python launch_gui.py \
+    --debug \
+    --verbose \
+    --trace-sql \
+    --profile-memory
+
+# Monitor system resources during debugging
+htop -p $(pgrep -f privatus-chat)
+
+# Check network connections
+ss -tuln | grep :8080
+ss -tuln | grep :6881
+
+# Monitor logs in real-time
+tail -f /var/log/privatus-chat/*.log
+```
+
+#### Performance Analysis
+```bash
+#!/bin/bash
+# performance_analysis.sh
+
+# CPU and Memory profiling
+python -m cProfile -o profile.out launch_gui.py
+python -m pstats profile.out | sort -k 3
+
+# Network performance testing
+iperf3 -c app2.example.com -p 8080
+
+# Database performance analysis
+sudo -u postgres psql -d privatus_dev -c "EXPLAIN ANALYZE SELECT * FROM messages WHERE timestamp > NOW() - INTERVAL '1 hour';"
+
+# Memory leak detection
+valgrind --tool=memcheck --leak-check=full python launch_gui.py
+```
+
+#### Network Diagnostics
+```bash
+#!/bin/bash
+# network_diagnostics.sh
+
+# Test DHT connectivity
+echo "Testing DHT connectivity..."
+timeout 10s python -c "
+import socket
+sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+sock.sendto(b'test', ('dht.libtorrent.org', 6881))
+print('DHT test packet sent')
+"
+
+# Check firewall rules
+sudo ufw status verbose
+sudo iptables -L -n -v
+
+# Test port accessibility
+nmap -p 8080,6881 localhost
+
+# Monitor network traffic
+sudo tcpdump -i any -n port 8080 or port 6881
+```
+
+#### Log Analysis Tools
+```bash
+#!/bin/bash
+# log_analysis.sh
+
+# Extract error patterns
+grep -r "ERROR" /var/log/privatus-chat/ | head -20
+
+# Find authentication failures
+grep -r "authentication failed" /var/log/privatus-chat/
+
+# Monitor connection patterns
+grep -r "connection established" /var/log/privatus-chat/ | wc -l
+
+# Generate log summary
+journalctl -u privatus-chat --since "1 hour ago" --no-pager -o json | \
+    jq -r '.MESSAGE' | sort | uniq -c | sort -nr
+```
+
+### Configuration Examples
+
+#### Production Configuration
+```bash
+# /opt/privatus-chat/config/production.env
+# Database Configuration
+DATABASE_URL=postgresql://privatus:secure_password@db1.example.com:5432/privatus_prod
+REDIS_URL=redis://redis-cluster.example.com:6379/0
+
+# Security Configuration
+SECRET_KEY=your-256-bit-secret-key-here
+ENCRYPTION_MASTER_KEY=your-master-key-here
+SSL_CERT_FILE=/etc/ssl/certs/privatus-chat.crt
+SSL_KEY_FILE=/etc/ssl/private/privatus-chat.key
+
+# Network Configuration
+BIND_ADDRESS=0.0.0.0
+PORT=8080
+DHT_PORT=6881
+PUBLIC_IP=auto
+
+# Performance Configuration
+MAX_WORKERS=8
+CACHE_SIZE=2GB
+MAX_MESSAGE_SIZE=100MB
+MAX_CONNECTIONS=10000
+
+# Monitoring Configuration
+LOG_LEVEL=INFO
+METRICS_ENABLED=true
+HEALTH_CHECK_PATH=/health
+PROMETHEUS_GATEWAY=http://monitoring.example.com:9091
+
+# Cluster Configuration
+CLUSTER_ENABLED=true
+CLUSTER_NODE_ID=app1
+CLUSTER_NODES=app1.example.com,app2.example.com,app3.example.com
+```
+
+#### Development Configuration
+```bash
+# /opt/privatus-chat/config/development.env
+# Database Configuration
+DATABASE_URL=postgresql://devuser:dev_password@localhost:5432/privatus_dev
+REDIS_URL=redis://localhost:6379/1
+
+# Security Configuration (less strict for development)
+SECRET_KEY=dev-secret-key-change-in-production
+ENCRYPTION_MASTER_KEY=dev-master-key-change-in-production
+DEBUG=true
+
+# Network Configuration
+BIND_ADDRESS=127.0.0.1
+PORT=8080
+DHT_PORT=6881
+
+# Performance Configuration
+MAX_WORKERS=2
+CACHE_SIZE=512MB
+MAX_MESSAGE_SIZE=50MB
+
+# Development Configuration
+LOG_LEVEL=DEBUG
+RELOAD_CODE=true
+PROFILE_MEMORY=true
+TRACE_SQL=true
+```
+
 ## Support
 
 For additional support:
@@ -378,8 +847,9 @@ For additional support:
 - **FAQ**: [Frequently Asked Questions](faq.md)
 - **GitHub Issues**: [Report Issues](https://github.com/privatus-chat/privatus-chat/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/privatus-chat/privatus-chat/discussions)
+- **Production Deployment Guide**: [Production Deployment](production-deployment.md)
 
 ---
 
-*Last updated: September 2024*
-*Privatus-chat v3.0.0*
+*Last updated: January 2025*
+*Privatus-chat v3.0.0 - Enhanced Deployment Edition*
